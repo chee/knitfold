@@ -5,7 +5,8 @@ import ChartView from "./chart-view.tsx"
 import CodePane from "./code-pane.tsx"
 import {codeFile, newBlock, YARNS, type CodeFile, type KnitfoldDoc} from "./datatype.ts"
 import {ROW} from "./glyphs.ts"
-import type {GridsResponse, YarnResponse} from "./knitfold.worker.ts"
+import type {GridsResponse, ValueResponse, YarnResponse} from "./knitfold.worker.ts"
+import {Stitch, stitchOf} from "./stitches.ts"
 
 import KnitscapeView from "./knitscape-view.tsx"
 import LatticeView from "./lattice-view.tsx"
@@ -13,6 +14,10 @@ import {runner, Superseded} from "./runner.ts"
 import ScarfView, {type StitchScene} from "./scarf-view.tsx"
 import Toolbar, {Icon, VIEWS, type ViewName} from "./toolbar.tsx"
 import {knitoutOf} from "./knitout.ts"
+import {findPatiently} from "./find.ts"
+import {fetcher} from "./fetcher.ts"
+import {overloadsOf, type Given} from "./given.ts"
+import {declarationsWith} from "./declarations.ts"
 import {creamOf, scarfPresence} from "./presence.ts"
 import {pointerAt} from "./anchor.ts"
 import Mice from "./mice.tsx"
@@ -154,8 +159,14 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 				if (files.has(url)) continue
 				const entry: {handle?: DocHandle<CodeFile>; off: () => void} = {off: () => {}}
 				files.set(url, entry)
-				window.repo.find<CodeFile>(url).then(file => {
-					if (files.get(url) !== entry) return
+				const gone = () => files.get(url) !== entry
+				// (a block whose code isn't here, yet: knitted plain till it is, so
+				// the rest of the scarf's not kept waiting for it)
+				findPatiently<CodeFile>(url, {
+					gone,
+					missing: () => setCodes(all => (url in all ? all : {...all, [url]: ""})),
+				}).then(file => {
+					if (!file || gone()) return
 					const read = () => setCodes(all => ({...all, [url]: text(file.doc()?.content)}))
 					file.on("change", read)
 					entry.handle = file
@@ -170,10 +181,13 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 	const grids = runner(4000)
 	const yarns = runner()
+	// (what the blocks' doc() and get() have got, and are getting: given.ts)
+	const got = fetcher()
 
 	const [result, setResult] = createSignal<GridsResponse | null>(null)
 	const [problem, setProblem] = createSignal<string | null>(null)
 	let gridsKey = ""
+	let gridsGiven: Given | undefined
 	let gridsTimer: ReturnType<typeof setTimeout> | undefined
 	createEffect(
 		() => {
@@ -200,14 +214,19 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 				// (what's knitted is t at 0: the chart moves, below)
 				time: 0,
 				sources,
+				given: got.given(),
 			}
 		},
 		request => {
 			if (!request) return
-			const key = JSON.stringify(request)
-			if (key === gridsKey) return
+			// (what's got isn't said in the key: it's a picture, maybe. it's new
+			// when it's a new one)
+			const {given, ...rest} = request
+			const key = JSON.stringify(rest)
+			if (key === gridsKey && given === gridsGiven) return
 			const first = !gridsKey
 			gridsKey = key
+			gridsGiven = given
 			clearTimeout(gridsTimer)
 			gridsTimer = setTimeout(
 				() =>
@@ -216,6 +235,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						.then(response => {
 							setResult(response)
 							setProblem(null)
+							got.want(response.wanted)
 						})
 						.catch(error => {
 							if (!(error instanceof Superseded)) setProblem(error.message)
@@ -324,6 +344,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						colour: "",
 						plating: null,
 						time: (performance.now() - started) / 1000,
+						given: got.given(),
 					})
 					.then(response => {
 						if (!going) return
@@ -338,6 +359,70 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			}
 		},
 	)
+
+	// ── a stitch on the chart, under the mouse: what the block's code gives
+	//    back there (asked of a worker of its own: the code may never end)
+
+	const probe = runner(1000)
+	const [hovered, setHovered] = createSignal<{x: number; y: number} | null>(null)
+	const [probed, setProbed] = createSignal<(ValueResponse & {x: number; y: number}) | null>(null)
+	let asking = false
+	function ask() {
+		const at = hovered()
+		const d = doc()
+		const file = blocks()[block()]?.file
+		const code = file ? codes()[file] : text(blocks()[block()]?.code)
+		if (!at || !d || asking) return
+		// (one at a time, and then the latest: a new worker each time the
+		// mouse crossed a cell would be a lot of workers)
+		asking = true
+		probe
+			.run({type: "value", code: code ?? "", x: at.x, y: at.y, width: width(), height: height(), time: (performance.now() - started) / 1000, given: got.given()})
+			.then(response => setProbed({...response, x: at.x, y: at.y}))
+			.catch(error => setProbed({type: "value", id: 0, value: "", technique: 0, error: String(error?.message ?? error), x: at.x, y: at.y}))
+			.finally(() => {
+				asking = false
+				const now = hovered()
+				if (now && (now.x !== at.x || now.y !== at.y)) ask()
+			})
+	}
+	function hover(at: {x: number; y: number} | null) {
+		setHovered(at)
+		if (at) ask()
+	}
+	// (the code changed, or the block: ask again about the stitch that's under it)
+	createEffect(
+		() => [block(), blockResult()],
+		() => {
+			setProbed(null)
+			ask()
+		},
+	)
+	const TECHNIQUE_WORDS = ["b, back", "f, front", "g, garter", "s, seed", "r1, 1×1 rib", "r2, 2×2 rib", "r3, 1×2 rib"]
+	const tip = () => {
+		const at = hovered()
+		const p = probed()
+		if (!at) return null
+		const fresh = p && p.x === at.x && p.y === at.y ? p : null
+		const knit = fresh && !fresh.error ? stitchOf(fresh.technique, at.x, at.y) === (flipped() ? Stitch.BACK : Stitch.FRONT) : null
+		return (
+			<>
+				<span class="knitfold-chart-tip-at">
+					x {at.x} y {at.y}
+				</span>
+				<Show when={fresh} fallback={<span class="knitfold-chart-tip-value">…</span>}>
+					{f => (
+						<Show when={!f().error} fallback={<span class="knitfold-chart-tip-error">{f().error}</span>}>
+							<span class="knitfold-chart-tip-value">{f().value}</span>
+							<span class="knitfold-chart-tip-what">
+								{TECHNIQUE_WORDS[f().technique]} · a {knit ? "knit" : "purl"}
+							</span>
+						</Show>
+					)}
+				</Show>
+			</>
+		)
+	}
 
 	// ── the picked block, alone: as a chart (as big as fits), or as any of
 	//    the scarf's views (yours alone: which is kept)
@@ -527,6 +612,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			document.removeEventListener("visibilitychange", onHidden)
 			clearTimeout(pointTimer)
 			here.stop()
+			got.stop()
 			observer.disconnect()
 			for (const file of files.values()) file.off()
 			grids.destroy()
@@ -534,6 +620,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			kcodes.destroy()
 			blockYarns.destroy()
 			live.destroy()
+			probe.destroy()
 			clearTimeout(gridsTimer)
 			clearTimeout(yarnTimer)
 		}
@@ -566,6 +653,12 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		return p ? (typeof p === "string" ? p : p.message) : ""
 	}
 	const pickedFile = () => blocks()[block()]?.file ?? null
+	// (what the language server's told: and what doc() and get() have got,
+	// what each is)
+	const declarations = createMemo(() => declarationsWith(overloadsOf(got.given())))
+	const failed = createMemo(
+		() => new Map(Object.entries(got.given()).flatMap(([key, given]) => ("error" in given ? [[key, given.error] as const] : []))),
+	)
 
 	return (
 		<div class="knitfold" data-page={page()} ref={root}>
@@ -674,6 +767,8 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 								cell={cell()}
 								colours={chartColours()}
 								flipped={flipped()}
+								onHover={hover}
+								tip={tip()}
 							/>
 						</div>
 					</Show>
@@ -726,7 +821,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 				<div class="knitfold-code" ref={codeBox}>
 					<Show when={pickedFile()} keyed>
-						{url => <CodePane url={url} />}
+						{url => <CodePane url={url} declarations={declarations} loading={got.loading} failed={failed} />}
 					</Show>
 				</div>
 

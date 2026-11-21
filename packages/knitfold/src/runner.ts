@@ -1,13 +1,28 @@
 import workerURL from "./knitfold.worker.ts?worker&url"
-import type {GridsRequest, GridsResponse, KcodeRequest, KcodeResponse, YarnRequest, YarnResponse} from "./knitfold.worker.ts"
+import type {
+	GridsRequest,
+	GridsResponse,
+	KcodeRequest,
+	KcodeResponse,
+	ValueRequest,
+	ValueResponse,
+	YarnRequest,
+	YarnResponse,
+} from "./knitfold.worker.ts"
 
 // a worker that does one thing at a time: asked again while it's busy, it's
 // stopped and started afresh (what it was doing isn't wanted now, and it
 // can't be told mid-loop). and one that takes longer than `timeout` is
 // stopped too: a block's code with a loop that never ends
 
-type Request = Omit<GridsRequest, "id"> | Omit<YarnRequest, "id"> | Omit<KcodeRequest, "id">
-type Response<R> = R extends {type: "grids"} ? GridsResponse : R extends {type: "kcode"} ? KcodeResponse : YarnResponse
+type Request = Omit<GridsRequest, "id"> | Omit<YarnRequest, "id"> | Omit<KcodeRequest, "id"> | Omit<ValueRequest, "id">
+type Response<R> = R extends {type: "grids"}
+	? GridsResponse
+	: R extends {type: "kcode"}
+		? KcodeResponse
+		: R extends {type: "value"}
+			? ValueResponse
+			: YarnResponse
 
 // a module worker, from a script that may be on another origin (a package
 // hosted elsewhere): a blob of this origin's can import it (lattice's)

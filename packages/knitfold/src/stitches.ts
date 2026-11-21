@@ -4,6 +4,8 @@
 // what the machine does with that needle on that row: knit it on the front
 // bed or the back. every technique's a fabric of knits and purls
 
+import {withCompletion} from "./completion.ts"
+
 export const Technique = {
 	/** knit on the back bed: reverse stockinette, a purl from the front */
 	BACK: 0,
@@ -93,11 +95,12 @@ export type BlockFunction = (
 ) => unknown
 
 // a block's code, tixy's way: an expression (`x % 2 ? r : f`) or a function
-// body with a return. it's run with Math and the techniques' names in scope
+// body, every statement of which is an expression (completion.ts): it's
+// the last thing it does. it's run with Math and the techniques' names in scope
 // (and their old capitals, FRONT and so on, for blocks written with them).
 // col and row are x and y by other names
-export function compile(code: string): BlockFunction {
-	const scope = {...Object.fromEntries(TECHNIQUES.map(name => [name, Technique[name]])), ...NAMES}
+export function compile(code: string, globals: Record<string, unknown> = {}): BlockFunction {
+	const scope = {...Object.fromEntries(TECHNIQUES.map(name => [name, Technique[name]])), ...NAMES, ...globals}
 	const wrap = (body: string) =>
 		new Function(
 			"scope",
@@ -109,7 +112,7 @@ export function compile(code: string): BlockFunction {
 		// (an expression: its value's the stitch)
 		return wrap(`return (${trimmed.replace(/;\s*$/, "")}\n)`)
 	} catch {
-		return wrap(code)
+		return wrap(withCompletion(code))
 	}
 }
 

@@ -30,6 +30,51 @@ const VARIABLES = [
 // Math's own, in scope without `Math.` (a block's code runs `with (Math)`)
 const MATH = Object.getOwnPropertyNames(Math)
 
+// doc() and get() (given.ts): the general ones, after each thing got's own
+// (overloadsOf), so a url that's been got says what's there
+const DOC = `/** an automerge doc's value, by its url (\`automerge:…\`). no await: it's waited
+ * for (the block's knitted plain till it's here), and the blocks run again
+ * as it changes */`
+const GET = `/** what's at a url. as: "bytes" (a Uint8Array), "text", "json", or "clever"
+ * (the default: what its type says it is. json's json, csv's rows of cells,
+ * an image a Picture, other text text, anything else its bytes). no await:
+ * it's waited for (the block's knitted plain till it's here) */`
+
+const PICTURE = `/** an image's pixels. x and y are the image's own: 0, 0 at its top left
+ * (past its edges, it's its edges) */
+interface Picture {
+	readonly width: number
+	readonly height: number
+	/** red, green, blue, alpha, each 0–255, row by row from the top */
+	readonly data: Uint8ClampedArray
+	/** [red, green, blue, alpha] at x, y, each 0–255 */
+	at(x: number, y: number): [number, number, number, number]
+	/** how light it is at x, y: 0 black to 1 white (see-through's white) */
+	light(x: number, y: number): number
+}`
+
+export function declarationsWith(overloads: {doc: string[]; get: string[]} = {doc: [], get: []}) {
+	return [
+		DECLARATIONS,
+		PICTURE,
+		"",
+		...overloads.doc,
+		DOC,
+		"declare function doc(url: string): any",
+		"",
+		...overloads.get,
+		GET,
+		`declare function get(url: string, as: "bytes"): Uint8Array`,
+		GET,
+		`declare function get(url: string, as: "text"): string`,
+		GET,
+		`declare function get(url: string, as: "json"): any`,
+		GET,
+		`declare function get(url: string, as?: "clever"): any`,
+		"",
+	].join("\n")
+}
+
 export const DECLARATIONS = [
 	"// knitfold: what a block's code can see",
 	"",

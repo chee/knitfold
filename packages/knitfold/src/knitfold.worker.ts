@@ -3,7 +3,8 @@
 // that never ends stops this worker, not the page), the scarf's knitout, and
 // a block's yarn, relaxed as knitscape relaxes it, until it's settled
 
-import {BlockError, compile, gridOf, Stitch, type Grid} from "./stitches.ts"
+import {BlockError, compile, gridOf, Stitch, techniqueOf, type Grid} from "./stitches.ts"
+import {lookups, NotReady, type Given, type Wanted} from "./given.ts"
 import {knitoutOf} from "./knitout.ts"
 import {knitoutToKcode} from "./vendor/kcode/knitout-to-kcode.js"
 import {programOf, readKnitout} from "./program.ts"
@@ -26,6 +27,8 @@ export interface GridsRequest {
 	time: number
 	/** the docs it's made from, pinned (see knitout.ts) */
 	sources?: string[]
+	/** what doc() and get() have got (given.ts) */
+	given?: Given
 }
 
 // the scarf's .k as kcode, the kniterate's own: its first line, as lattice
@@ -38,6 +41,40 @@ export interface KcodeRequest {
 	sources: string[]
 }
 
+// one stitch: what the block's code gives back there (the chart's hover)
+export interface ValueRequest {
+	type: "value"
+	id: number
+	code: string
+	x: number
+	y: number
+	width: number
+	height: number
+	time: number
+	given?: Given
+}
+
+export interface ValueResponse {
+	type: "value"
+	id: number
+	/** what the code gave back, written out */
+	value: string
+	technique: number
+	error: string | null
+}
+
+// a value, as it'd be written in the code
+function written(value: unknown): string {
+	if (typeof value === "number") return Number.isInteger(value) ? String(value) : String(+value.toFixed(3))
+	if (typeof value === "string") return JSON.stringify(value)
+	if (typeof value === "function") return "a function"
+	try {
+		return String(value)
+	} catch {
+		return "?"
+	}
+}
+
 export interface KcodeResponse {
 	type: "kcode"
 	id: number
@@ -48,6 +85,8 @@ export interface BlockResult {
 	stitches: Uint8Array
 	techniques: Uint8Array
 	error: {message: string; x?: number; y?: number} | null
+	/** it asked for something it hasn't got yet: plain till it has */
+	pending?: boolean
 }
 
 export interface GridsResponse {
@@ -57,6 +96,8 @@ export interface GridsResponse {
 	knitout: string
 	/** each block's lines in the .k, from 1: its first op's to its last's */
 	lines: {start: number; end: number}[]
+	/** what doc() and get() were asked for, and weren't given */
+	wanted: Wanted[]
 	ms: number
 }
 
@@ -137,9 +178,14 @@ function grids(request: GridsRequest): GridsResponse {
 	})
 	const results: BlockResult[] = []
 	const made: Grid[] = []
+	const wanted = new Map<string, Wanted>()
+	const globals = lookups(request.given ?? {}, wanted)
 	request.codes.forEach((code, b) => {
+		const asked = wanted.size
 		try {
-			const grid = gridOf(compile(code), width, height, request.time)
+			const grid = gridOf(compile(code, globals), width, height, request.time)
+			// (it asked, and caught it: it's not what it'll be, yet)
+			if (wanted.size > asked) throw new NotReady([...wanted.values()].at(-1)!)
 			made.push(grid)
 			results.push({stitches: grid.stitches, techniques: grid.techniques, error: null})
 		} catch (error) {
@@ -147,6 +193,10 @@ function grids(request: GridsRequest): GridsResponse {
 			// still the right length)
 			const grid = plain()
 			made.push(grid)
+			if (wanted.size > asked) {
+				results.push({stitches: grid.stitches, techniques: grid.techniques, error: null, pending: true})
+				return
+			}
 			const cause = error instanceof BlockError ? error.cause : error
 			const name = cause instanceof Error ? cause.name : "Error"
 			const message = error instanceof Error ? `${name}: ${error.message}` : String(error)
@@ -158,7 +208,7 @@ function grids(request: GridsRequest): GridsResponse {
 		}
 	})
 	const knitout = knitoutOf(made, {title: request.title, colour: request.colour, plating: request.plating, sources: request.sources})
-	return {type: "grids", id: request.id, blocks: results, knitout, lines: linesOf(knitout, made.length), ms: performance.now() - t0}
+	return {type: "grids", id: request.id, blocks: results, knitout, lines: linesOf(knitout, made.length), wanted: [...wanted.values()], ms: performance.now() - t0}
 }
 
 function yarn(request: YarnRequest): YarnResponse {
@@ -273,9 +323,22 @@ function yarn(request: YarnRequest): YarnResponse {
 	}
 }
 
-self.onmessage = (event: MessageEvent<GridsRequest | YarnRequest | KcodeRequest>) => {
+self.onmessage = (event: MessageEvent<GridsRequest | YarnRequest | KcodeRequest | ValueRequest>) => {
 	const request = event.data
 	try {
+		if (request.type === "value") {
+			const {code, x, y, width, height, time} = request
+			let response: ValueResponse
+			try {
+				const value = compile(code, lookups(request.given ?? {}, new Map()))(x, y, x + y * width, width, height, time)
+				response = {type: "value", id: request.id, value: written(value), technique: techniqueOf(value), error: null}
+			} catch (error) {
+				const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+				response = {type: "value", id: request.id, value: "", technique: 0, error: message}
+			}
+			self.postMessage(response)
+			return
+		}
 		if (request.type === "kcode") {
 			const comment = request.sources.length ? `// x-patchwork-sources ${request.sources.join(" ")}\n` : ""
 			const kcode = comment + knitoutToKcode(request.knitout, request.name, {})

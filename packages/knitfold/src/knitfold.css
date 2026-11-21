@@ -13,6 +13,7 @@
 		--knitfold-hover: color-mix(in oklch, var(--editor-fill, #fcf7f2), var(--studio-warning, #ffd84a) 22%);
 		--knitfold-accent: var(--studio-primary, #c8336c);
 		--knitfold-accent-soft: color-mix(in oklch, var(--studio-primary, #c8336c) 14%, var(--editor-fill, #fcf7f2));
+		--knitfold-danger: var(--knitfold-danger);
 		--knitfold-selection: var(--editor-selection-fill, var(--studio-selection-fill, #ffef8acc));
 		--knitfold-cursor: var(--editor-cursor-fill, #c8336c);
 		--knitfold-family: "Iosevka Rabbits", ui-monospace, monospace;
@@ -55,6 +56,8 @@
 	--studio-family-code: var(--knitfold-family-code);
 	--editor-family-sans: var(--knitfold-family);
 	--editor-family-code: var(--knitfold-family-code);
+	/* (codemirror's theme's, which its tooltips have) */
+	--text-editor-family-code: var(--knitfold-family-code);
 	--knitfold-family-display: var(--knitfold-family);
 	position: relative;
 	display: grid;
@@ -223,6 +226,15 @@
 	opacity: 0.7;
 }
 
+@keyframes knitfold-shimmer {
+	from {
+		background-position: 100% 0;
+	}
+	to {
+		background-position: 0 0;
+	}
+}
+
 @keyframes knitfold-arrive {
 	from {
 		opacity: 0;
@@ -335,10 +347,90 @@
 	}
 }
 
+/* the chart, and what's said about the stitch under the mouse: a little
+   paper slip over it (or under it, at the top) */
+.knitfold .knitfold-chart {
+	position: relative;
+	flex: none;
+	cursor: crosshair;
+}
+
+.knitfold .knitfold-chart-tip {
+	position: absolute;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	max-width: 22em;
+	padding: 4px 8px 5px;
+	transform: translate(-50%, calc(-100% - 6px));
+	border: 1px solid var(--knitfold-grid);
+	border-radius: 4px;
+	background: var(--knitfold-page);
+	color: var(--knitfold-ink);
+	box-shadow: 0 2px 6px #2c223122;
+	font: 12px/1.3 var(--knitfold-family);
+	white-space: nowrap;
+	pointer-events: none;
+
+	&[data-below] {
+		transform: translate(-50%, 6px);
+	}
+}
+
+.knitfold .knitfold-chart-tip-at {
+	opacity: 0.6;
+	font-size: 11px;
+}
+
+.knitfold .knitfold-chart-tip-value {
+	font-weight: 700;
+	font-size: 14px;
+}
+
+.knitfold .knitfold-chart-tip-error {
+	color: var(--knitfold-error, #b3261e);
+	white-space: normal;
+}
+
 .knitfold .knitfold-code {
 	flex: 1 1 0;
 	min-height: 0;
 	overflow: hidden;
+}
+
+/* the editor's tooltips' layer (code-pane.tsx): in the top layer, the
+   whole window, invisible, letting the mouse through but for its tooltips */
+.knitfold .knitfold-tooltips {
+	position: fixed;
+	inset: 0;
+	width: auto;
+	height: auto;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	overflow: visible;
+	pointer-events: none;
+
+	/* (codemirror puts them in a wrapper of its own, the editor's theme on
+	   it: the file tool's theme gives that the editor's paper, and all its
+	   height. it keeps the theme's ink and font, for the tooltips, but no
+	   more, and lets the mouse through too) */
+	& > :not(.cm-tooltip) {
+		height: 0 !important;
+		background: none !important;
+		overflow: visible !important;
+	}
+
+	& * {
+		pointer-events: none;
+	}
+
+	& .cm-tooltip,
+	& .cm-tooltip * {
+		pointer-events: auto;
+	}
 }
 
 /* patchwork's file tool, on the block's .js: all of the pane, and no
@@ -380,6 +472,20 @@
 			border-right: 1px solid var(--knitfold-needle);
 			border-radius: 0 3px 0 0;
 		}
+	}
+
+	/* a doc() or get() that's still being got: a shimmer along its url */
+	& .knitfold-getting {
+		border-radius: 2px;
+		background: linear-gradient(90deg, transparent 20%, var(--knitfold-accent-soft) 50%, transparent 80%);
+		background-size: 300% 100%;
+		animation: knitfold-shimmer 1.6s linear infinite;
+	}
+
+	/* and one that couldn't be (it says why, hovered) */
+	& .knitfold-ungot {
+		text-decoration: underline wavy var(--knitfold-danger) 1px;
+		text-underline-offset: 3px;
 	}
 
 	& .cm-presence-caret-label {
@@ -591,11 +697,11 @@
 /* taking a block out: asked, in red */
 .knitfold .knitfold-sizebutton.knitfold-delete {
 	white-space: nowrap;
-	color: var(--studio-danger, #d0342c);
+	color: var(--knitfold-danger);
 
 	&:hover {
 		color: var(--knitfold-page);
-		background: var(--studio-danger, #d0342c);
+		background: var(--knitfold-danger);
 	}
 }
 
