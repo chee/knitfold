@@ -1,9 +1,10 @@
 import {createEffect, onSettled} from "solid-js"
 import type {ChartColours} from "./chart.ts"
+import {ROW} from "./glyphs.ts"
 import {openSurface, type Surface} from "./render-client.ts"
 
 // the block's chart (chart.ts), drawn in the render worker: the page sets
-// its size, a cell a stitch, and says what's on it
+// its size, a cell a stitch (ROW as tall as it's wide), and says what's on it
 
 export default function ChartView(props: {
 	stitches: Uint8Array | undefined
@@ -21,7 +22,7 @@ export default function ChartView(props: {
 		const {stitches, width, height, cell, colours, flipped} = props
 		if (!surface || !stitches || stitches.length !== width * height) return
 		canvas.style.width = `${width * cell}px`
-		canvas.style.height = `${height * cell}px`
+		canvas.style.height = `${height * cell * ROW}px`
 		const copy = stitches.slice()
 		surface.send({type: "chart", stitches: copy, width, height, cell, colours: {...colours}, flipped}, [copy.buffer])
 	}

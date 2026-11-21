@@ -4,6 +4,7 @@ import type {ChartColours} from "./chart.ts"
 import ChartView from "./chart-view.tsx"
 import CodePane from "./code-pane.tsx"
 import {codeFile, newBlock, YARNS, type CodeFile, type KnitfoldDoc} from "./datatype.ts"
+import {ROW} from "./glyphs.ts"
 import type {GridsResponse, YarnResponse} from "./knitfold.worker.ts"
 
 import KnitscapeView from "./knitscape-view.tsx"
@@ -341,7 +342,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	// ── the picked block, alone: as a chart (as big as fits), or as any of
 	//    the scarf's views (yours alone: which is kept)
 
-	const BLOCK_VIEWS = [{id: "chart", title: "chart: a square a stitch, the colour that shows"}, ...VIEWS] as const
+	const BLOCK_VIEWS = [{id: "chart", title: "chart: a cell a stitch, the colour that shows"}, ...VIEWS] as const
 	type BlockView = (typeof BLOCK_VIEWS)[number]["id"]
 	// (for now: the chart, always. the others are here, their switch hidden)
 	const [blockView, setBlockView] = createSignal<BlockView>("chart")
@@ -410,7 +411,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	const [room, setRoom] = createSignal({width: 0, height: 0})
 	const cell = createMemo(() => {
 		const {width: w, height: h} = room()
-		return Math.max(2, Math.min(16, Math.floor(Math.min((w - 72) / width(), ((h - 16) * 0.6) / height()))))
+		return Math.max(2, Math.min(16, Math.floor(Math.min((w - 72) / width(), ((h - 16) * 0.6) / (height() * ROW)))))
 	})
 	const chartColours = createMemo<ChartColours>(() => {
 		const yarn = doc()?.yarn || YARNS[0]
