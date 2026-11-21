@@ -143,32 +143,61 @@ export default function ScarfView(props: {
 		}
 	}
 
-	function onPointerDown(event: PointerEvent) {
+	// the fingers (or the mouse) down on it: one drags it about, two pinch.
+	// each time one comes or goes, the gesture starts again from where the
+	// scarf is, with whoever's still down
+	const pointers = new Map<number, {x: number; y: number}>()
+	let gesture: {view: View; x: number; y: number; distance: number} | null = null
+	// (moved, or pinched, since the first went down: not a click)
+	let dragged = false
+
+	function where() {
+		const rect = canvas.getBoundingClientRect()
+		const [a, b] = [...pointers.values()]
+		if (!b) return {x: a.x - rect.left, y: a.y - rect.top, distance: 0}
+		return {x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top, distance: Math.hypot(a.x - b.x, a.y - b.y)}
+	}
+
+	function begin() {
 		const v = view()
-		if (!v || event.button !== 0) return
+		gesture = v && pointers.size ? {view: v, ...where()} : null
+	}
+
+	function onPointerDown(event: PointerEvent) {
+		if (!view() || event.button !== 0) return
 		canvas.setPointerCapture(event.pointerId)
-		const start = {x: event.clientX, y: event.clientY, view: v}
-		let dragged = false
-		const moving = (e: PointerEvent) => {
-			const dx = e.clientX - start.x
-			const dy = e.clientY - start.y
-			if (!dragged && Math.hypot(dx, dy) < CLICK) return
-			dragged = true
-			move({...start.view, x: start.view.x + dx, y: start.view.y + dy})
+		if (!pointers.size) dragged = false
+		pointers.set(event.pointerId, {x: event.clientX, y: event.clientY})
+		if (pointers.size > 1) dragged = true
+		begin()
+	}
+
+	function onPointerMove(event: PointerEvent) {
+		if (!pointers.has(event.pointerId) || !gesture) return
+		pointers.set(event.pointerId, {x: event.clientX, y: event.clientY})
+		const now = where()
+		const start = gesture.view
+		if (!dragged && Math.hypot(now.x - gesture.x, now.y - gesture.y) < CLICK) return
+		dragged = true
+		if (pointers.size === 1) {
+			move({...start, x: start.x + now.x - gesture.x, y: start.y + now.y - gesture.y})
+			return
 		}
-		const up = (e: PointerEvent) => {
-			canvas.removeEventListener("pointermove", moving)
-			canvas.removeEventListener("pointerup", up)
-			canvas.removeEventListener("pointercancel", up)
-			if (!dragged && e.type === "pointerup") {
-				const rect = canvas.getBoundingClientRect()
-				const n = blockAt(e.clientX - rect.left, e.clientY - rect.top)
-				if (n >= 0) props.onPick(n)
-			}
+		// what was under the fingers' middle stays under it, as they spread
+		const scale = Math.min(48, Math.max(0.5, start.scale * (now.distance / (gesture.distance || 1))))
+		const actual = scale / start.scale
+		move({...start, scale, x: now.x - (gesture.x - start.x) * actual, y: now.y - (gesture.y - start.y) * actual})
+	}
+
+	function onPointerUp(event: PointerEvent) {
+		if (!pointers.has(event.pointerId)) return
+		pointers.delete(event.pointerId)
+		if (!pointers.size && !dragged && event.type === "pointerup") {
+			const rect = canvas.getBoundingClientRect()
+			const n = blockAt(event.clientX - rect.left, event.clientY - rect.top)
+			if (n >= 0) props.onPick(n)
 		}
-		canvas.addEventListener("pointermove", moving)
-		canvas.addEventListener("pointerup", up)
-		canvas.addEventListener("pointercancel", up)
+		begin()
 	}
 
 	onSettled(() => {
@@ -196,7 +225,14 @@ export default function ScarfView(props: {
 
 	return (
 		<div class="knitfold-scarfview" ref={box}>
-			<canvas ref={canvas} onPointerDown={onPointerDown} onDblClick={() => setPlaced(null)} />
+			<canvas
+				ref={canvas}
+				onPointerDown={onPointerDown}
+				onPointerMove={onPointerMove}
+				onPointerUp={onPointerUp}
+				onPointerCancel={onPointerUp}
+				onDblClick={() => setPlaced(null)}
+			/>
 			<ol class="knitfold-tabs" aria-label="blocks">
 				<For each={tabs()} keyed={false}>
 					{(tab, n) => (
