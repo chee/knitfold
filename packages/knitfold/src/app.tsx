@@ -13,6 +13,7 @@ import ScarfView, {type StitchScene} from "./scarf-view.tsx"
 import Toolbar, {Icon, VIEWS, type ViewName} from "./toolbar.tsx"
 import {knitoutOf} from "./knitout.ts"
 import "./knitfold.css"
+import {addFonts} from "./fonts.ts"
 
 // a scarf: down the left, the toolbar; beside it, the whole scarf in yarn,
 // the first block knitted at the bottom; on the right, the picked block as a
@@ -83,6 +84,7 @@ function themeColours(element: HTMLElement) {
 }
 
 export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element: HTMLElement}) {
+	addFonts()
 	// (a scarf's view is for one scarf: another is another view)
 	const handle = props.handle
 	const [doc, setDoc] = createSignal(handle.doc(), {equals: false})
@@ -490,7 +492,6 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 				switches={false}
 				yarn={doc()?.yarn || YARNS[0]}
 				plating={doc()?.plating ?? null}
-				size={width()}
 				picked={block()}
 				blocks={blocks().length}
 				canDownload={!!result()}
@@ -507,12 +508,6 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 					change(d => {
 						const at = d.yarns?.indexOf(colour) ?? -1
 						if (at >= 0) d.yarns!.splice(at, 1)
-					})
-				}
-				onSize={size =>
-					change(d => {
-						d.width = size
-						d.height = size
 					})
 				}
 				onAdd={addBlock}

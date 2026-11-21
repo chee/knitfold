@@ -1,6 +1,6 @@
 import {createSignal, For, onSettled, Show} from "solid-js"
 import type {JSX} from "@solidjs/web"
-import {BLOCK_SIZES, YARNS} from "./datatype.ts"
+import {YARNS} from "./datatype.ts"
 import {ICONS, type IconName} from "./icons.ts"
 
 /** the ways the scarf can be shown */
@@ -12,11 +12,12 @@ export const VIEWS = [
 ] as const
 export type ViewName = (typeof VIEWS)[number]["id"]
 
-// knitfold's toolbar, down the left: what the scarf's made of (the yarn
-// and what it's plated with: a cone of each), then its shape (the blocks'
-// size, a new block, taking one out), and, at the bottom, what goes out of
-// it (its .k, or its kcode). a choice opens beside its button. (turning it
-// over to see the back's in the page's top right: it's only yours)
+// knitfold's toolbar, down the left (along the top, on a phone): the
+// blocks (a new one, taking the picked one out), then what the scarf's
+// made of (the yarn and what it's plated with: a cone of each), and, at the
+// end, what goes out of it (its .k, or its kcode). a choice opens beside
+// its button. (turning it over to see the back's in the page's top right:
+// it's only yours)
 
 export function Icon(props: {name: IconName; colour?: string}) {
 	return (
@@ -62,7 +63,6 @@ export default function Toolbar(props: {
 	switches?: boolean
 	yarn: string
 	plating: string | null
-	size: number
 	picked: number
 	blocks: number
 	canDownload: boolean
@@ -73,13 +73,12 @@ export default function Toolbar(props: {
 	/** add a colour to the scarf's own yarns, or take it off */
 	onKeep: (colour: string) => void
 	onForget: (colour: string) => void
-	onSize: (size: number) => void
 	onAdd: () => void
 	onRemove: () => void
 	onDownload: () => void
 	onDownloadKcode: () => void
 }) {
-	type Which = "yarn" | "plating" | "size" | "download"
+	type Which = "yarn" | "plating" | "download"
 	const [open, setOpen] = createSignal<Which | null>(null)
 	const toggle = (which: Which) => setOpen(now => (now === which ? null : which))
 	const close = () => setOpen(null)
@@ -172,6 +171,21 @@ export default function Toolbar(props: {
 			</div>
 
 			<div class="knitfold-group">
+				<button class="knitfold-toolbutton" title="new block" aria-label="new block" onClick={() => props.onAdd()}>
+					<Icon name="add" />
+				</button>
+				<button
+					class="knitfold-toolbutton"
+					data-danger={removing() ? "" : undefined}
+					disabled={props.blocks <= 1}
+					title={removing() ? "again, to take it out" : "take this block out"}
+					aria-label="remove the block"
+					onClick={remove}>
+					<Icon name="remove" />
+				</button>
+			</div>
+
+			<div class="knitfold-group">
 				<div class="knitfold-holder">
 					<button class="knitfold-toolbutton" title="the yarn" aria-label="the yarn" onClick={() => toggle("yarn")}>
 						<Icon name="cone" colour={props.yarn} />
@@ -192,40 +206,6 @@ export default function Toolbar(props: {
 						{palette(() => props.plating, props.onPlating, true)}
 					</Pop>
 				</div>
-			</div>
-
-			<div class="knitfold-group">
-				<div class="knitfold-holder">
-					<button class="knitfold-toolbutton" title={`blocks are ${props.size} × ${props.size}`} aria-label="block size" onClick={() => toggle("size")}>
-						<Icon name="size" />
-					</button>
-					<Pop open={open() === "size"} onClose={close}>
-						<div class="knitfold-sizes">
-							<For each={BLOCK_SIZES}>
-								{size => (
-									<button
-										class="knitfold-sizebutton"
-										aria-pressed={size === props.size ? "true" : "false"}
-										onClick={() => (props.onSize(size), close())}>
-										{size}
-									</button>
-								)}
-							</For>
-						</div>
-					</Pop>
-				</div>
-				<button class="knitfold-toolbutton" title="new block" aria-label="new block" onClick={() => props.onAdd()}>
-					<Icon name="add" />
-				</button>
-				<button
-					class="knitfold-toolbutton"
-					data-danger={removing() ? "" : undefined}
-					disabled={props.blocks <= 1}
-					title={removing() ? "again, to take it out" : "take this block out"}
-					aria-label="remove the block"
-					onClick={remove}>
-					<Icon name="remove" />
-				</button>
 			</div>
 
 			<span class="knitfold-toolbar-gap" />

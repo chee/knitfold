@@ -15,9 +15,9 @@
 		--knitfold-accent-soft: color-mix(in oklch, var(--studio-primary, #c8336c) 14%, var(--editor-fill, #fcf7f2));
 		--knitfold-selection: var(--editor-selection-fill, var(--studio-selection-fill, #ffef8acc));
 		--knitfold-cursor: var(--editor-cursor-fill, #c8336c);
-		--knitfold-family: var(--editor-family-sans, var(--studio-family-sans, "Jost", system-ui, sans-serif));
-		--knitfold-family-code: var(--editor-family-code, var(--studio-family-code, ui-monospace, monospace));
-		--knitfold-family-display: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
+		--knitfold-family: "Iosevka Rabbits", ui-monospace, monospace;
+		--knitfold-family-code: "Iosevka Rabbits", ui-monospace, monospace;
+		--knitfold-family-display: "Iosevka Rabbits", ui-monospace, monospace;
 
 		--knitfold-syntax-comment: var(--syntax-comment, var(--knitfold-muted));
 		--knitfold-syntax-keyword: var(--syntax-keyword, var(--studio-primary, #c8336c));
@@ -43,12 +43,19 @@
 	display: grid;
 	place-items: center;
 	height: 100%;
-	font: italic 300 20px var(--knitfold-family-display);
+	font: italic 300 18px var(--knitfold-family);
 	color: var(--knitfold-muted);
 	background: var(--knitfold-page);
 }
 
 .knitfold {
+	/* (Iosevka Rabbits for everything: patchwork's file tool, in here, too) */
+	--studio-family-sans: var(--knitfold-family);
+	--studio-family-ui: var(--knitfold-family);
+	--studio-family-code: var(--knitfold-family-code);
+	--editor-family-sans: var(--knitfold-family);
+	--editor-family-code: var(--knitfold-family-code);
+	--knitfold-family-display: var(--knitfold-family);
 	position: relative;
 	display: grid;
 	grid-template-columns: auto minmax(280px, 1fr) minmax(320px, 1fr);
@@ -549,7 +556,7 @@
 		& button {
 			padding: 6px 4px;
 			border: 0;
-			font: italic 300 15px var(--knitfold-family-display);
+			font: 14px var(--knitfold-family-code);
 			background: none;
 			color: var(--knitfold-muted);
 			cursor: pointer;
