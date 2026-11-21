@@ -1,0 +1,14 @@
+packages:
+  - "."
+  - "packages/*"
+allowBuilds:
+  cbor-extract: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - "@inkandswitch/*"
+  - "@chee/*"
+  - "@automerge/*"
+overrides:
+  "@automerge/automerge": 3.5.0
+fetchTimeout: 3600000
+fetchRetries: 5

@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"noEmit": true,
+		"target": "esnext",
+		"module": "esnext",
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"skipLibCheck": true,
+		"isolatedModules": true,
+		"allowJs": true,
+		"allowImportingTsExtensions": true,
+		"jsx": "preserve",
+		"jsxImportSource": "@solidjs/web",
+		"lib": ["esnext", "dom", "dom.iterable", "webworker"],
+		"types": ["vite/client"]
+	},
+	"include": ["src"]
+}

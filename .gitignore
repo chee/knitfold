@@ -1,0 +1,6 @@
+/dist/
+.pushwork/
+node_modules/
+packages/*/dist/
+.netlify
+*.swp

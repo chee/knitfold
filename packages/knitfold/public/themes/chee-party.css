@@ -1,0 +1,126 @@
+/* chee.party's colours: a yellow page, black ink, that blue for links, and
+   the pink, mint, lilac and peach of its stickers. set in Jost.
+   the night one is the same, the page and ink swapped */
+
+@font-face {
+	font-family: "Jost";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("../fonts/jost/jost-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Jost";
+	font-style: italic;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("../fonts/jost/jost-latin-wght-italic.woff2") format("woff2");
+}
+
+[theme="chee-party"],
+[theme="chee-party-dark"] {
+	--chee-yellow: #ffff00;
+	--chee-lemon: #ffff88;
+	--chee-ink: #111111;
+	--chee-blue: #2269ff;
+	--chee-pink: #ff4a90;
+	--chee-mint: #7cf2c4;
+	--chee-mynt: oklch(0.88 0.17 167.51);
+	--chee-lilac: #b98cff;
+	--chee-peach: #ffb86b;
+	--chee-cherry: #ff2284;
+	--chee-purple: #7633cf;
+	--chee-teal: #1b999f;
+	--chee-green: #20c99b;
+	--chee-comment: #a2b2d4;
+
+	--studio-family-sans: "Jost", "Jost*", system-ui, -apple-system, sans-serif;
+	--studio-family-ui: var(--studio-family-sans);
+	--studio-family-code: Monaco, "Lifesender Mono", ui-monospace, Consolas, monospace;
+
+	--studio-primary: var(--chee-blue);
+	--studio-primary-line: #ffffff;
+	--studio-secondary: var(--chee-pink);
+	--studio-secondary-line: var(--chee-ink);
+	--studio-link: var(--chee-blue);
+	--studio-danger: var(--chee-cherry);
+	--studio-danger-line: #ffffff;
+	--studio-warning: var(--chee-peach);
+	--studio-added: var(--chee-green);
+	--studio-deleted: var(--chee-cherry);
+	--studio-modified: var(--chee-peach);
+
+	--studio-radius-xs: 2px;
+	--studio-radius-sm: 4px;
+	--studio-radius-md: 6px;
+	--studio-radius-lg: 10px;
+
+	--syntax-comment: var(--chee-comment);
+	--syntax-style-comment: italic;
+	--syntax-doc-comment: var(--chee-comment);
+	--syntax-number: var(--chee-blue);
+	--syntax-integer: var(--chee-blue);
+	--syntax-float: var(--chee-blue);
+	--syntax-variable-name: var(--studio-line);
+	--syntax-definition--variable-name: var(--chee-green);
+	--syntax-atom: #aa3565;
+	--syntax-bool: #aa3565;
+	--syntax-function--variable-name: var(--chee-purple);
+	--syntax-function--property-name: var(--chee-purple);
+	--syntax-keyword: var(--chee-teal);
+	--syntax-control-keyword: var(--chee-teal);
+	--syntax-weight-keyword: 600;
+	--syntax-string: #336633;
+	--syntax-fill-string: #acffcc33;
+	--syntax-operator: var(--studio-line);
+	--syntax-punctuation: var(--studio-line);
+}
+
+[theme="chee-party"] {
+	color-scheme: light;
+	--studio-fill: var(--chee-yellow);
+	--studio-line: var(--chee-ink);
+	--studio-chrome-fill: var(--chee-yellow);
+	--studio-chrome-line: var(--chee-ink);
+	--studio-selection-fill: #36f9c099;
+	--studio-selection-line: var(--chee-ink);
+	--editor-fill: var(--chee-yellow);
+	--editor-line: var(--chee-ink);
+	--editor-cursor-fill: var(--chee-pink);
+	--text-editor-fill: var(--chee-yellow);
+	--text-editor-cursor-fill: var(--chee-pink);
+	/* (chee.party's comment blue is for its code boxes: on the yellow page
+	   it's a deeper one) */
+	--syntax-comment: #4f5f8f;
+	--syntax-doc-comment: #4f5f8f;
+}
+
+[theme="chee-party-dark"] {
+	color-scheme: dark;
+	--studio-fill: var(--chee-ink);
+	--studio-line: var(--chee-yellow);
+	--studio-chrome-fill: var(--chee-ink);
+	--studio-chrome-line: var(--chee-yellow);
+	--studio-primary: #6f9cff;
+	--studio-selection-fill: #36f9c055;
+	--studio-selection-line: var(--chee-yellow);
+	--editor-fill: var(--chee-ink);
+	--editor-line: var(--chee-yellow);
+	--editor-cursor-fill: var(--chee-pink);
+	--text-editor-fill: var(--chee-ink);
+	--text-editor-cursor-fill: var(--chee-pink);
+	--syntax-string: var(--chee-mint);
+	--syntax-number: #6f9cff;
+	--syntax-integer: #6f9cff;
+	--syntax-float: #6f9cff;
+	--syntax-function--variable-name: var(--chee-lilac);
+	--syntax-function--property-name: var(--chee-lilac);
+	--syntax-keyword: var(--chee-mint);
+	--syntax-control-keyword: var(--chee-mint);
+	--syntax-atom: var(--chee-pink);
+	--syntax-bool: var(--chee-pink);
+	--syntax-definition--variable-name: var(--chee-peach);
+	/* knitfold's buttons, raised off the night page */
+	--knitfold-raised: color-mix(in oklch, var(--chee-ink), var(--chee-yellow) 12%);
+}
