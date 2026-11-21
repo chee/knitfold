@@ -386,11 +386,6 @@
 	z-index: 2;
 }
 
-@keyframes knitfold-blink {
-	50% {
-		opacity: 0.35;
-	}
-}
 
 /* a choice, beside its button */
 .knitfold .knitfold-pop {
@@ -488,6 +483,17 @@
 	&[aria-pressed="true"] {
 		color: var(--knitfold-accent);
 		box-shadow: inset 0 -2px 0 var(--knitfold-accent);
+	}
+}
+
+/* taking a block out: asked, in red */
+.knitfold .knitfold-sizebutton.knitfold-delete {
+	white-space: nowrap;
+	color: var(--studio-danger, #d0342c);
+
+	&:hover {
+		color: var(--knitfold-page);
+		background: var(--studio-danger, #d0342c);
 	}
 }
 
