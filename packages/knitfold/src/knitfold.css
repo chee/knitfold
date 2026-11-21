@@ -167,17 +167,37 @@
 	pointer-events: none;
 }
 
-/* the others: each a tiny ball of yarn in a cream of their own (their
-   --knitfold-them, set by their peer id), see-through, by the block they're
-   looking at */
-.knitfold .knitfold-other {
+/* the others, each in a cream of their own (their --knitfold-them, set by
+   their peer id), see-through: a machine's latch needle by the block they're
+   looking at, like their caret in its code, and where their mouse is, a
+   tiny ball of yarn */
+.knitfold :is(.knitfold-other-needle, .knitfold-other-mouse) {
 	position: absolute;
-	width: 9px;
-	height: 9px;
 	overflow: visible;
 	opacity: 0.7;
 	pointer-events: none;
 	--knitfold-them-line: color-mix(in oklch, var(--knitfold-them, #f3e9dc), var(--knitfold-ink) 30%);
+}
+
+.knitfold .knitfold-other-needle {
+	width: 4px;
+	height: 14px;
+	animation: knitfold-arrive 0.4s ease-out;
+
+	& path {
+		fill: none;
+		stroke: color-mix(in oklch, var(--knitfold-them, #f3e9dc), var(--knitfold-ink) 35%);
+		stroke-width: 1;
+	}
+}
+
+/* (its place said a few times a second: eased between, so it glides) */
+.knitfold .knitfold-other-mouse {
+	top: 0;
+	left: 0;
+	width: 9px;
+	height: 9px;
+	transition: transform 60ms linear;
 	animation: knitfold-arrive 0.8s ease-out;
 }
 

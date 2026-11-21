@@ -436,12 +436,24 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 
 
-	// ── who else is here: a dot by the block each's looking at, or, in its
-	// code, a needle where they are (the file tool's caret, made one)
+	// ── who else is here: a needle by the block each's looking at, or, in its
+	// code, where they are (the file tool's caret, made one); and over the
+	// scarf, a ball of yarn where their mouse is
 
-	const here = scarfPresence(handle, {block: block(), typing: false})
+	const here = scarfPresence(handle, {block: block(), typing: false, at: null})
 	createEffect(block, n => here.say("block", n))
-	const dots = createMemo(() => here.others().filter(other => !other.typing))
+	const needles = createMemo(() => here.others().filter(other => !other.typing))
+	const mice = createMemo(() => here.others().flatMap(other => (other.at ? [{peerId: other.peerId, at: other.at}] : [])))
+	// (yours, said at most every 50ms: the last of them, always)
+	let pointing: readonly [number, number] | null = null
+	let pointTimer: ReturnType<typeof setTimeout> | undefined
+	function point(at: readonly [number, number] | null) {
+		pointing = at
+		pointTimer ??= setTimeout(() => {
+			pointTimer = undefined
+			here.say("at", pointing)
+		}, 50)
+	}
 	// (each one's cream, wherever they're seen: their dot here, their caret in
 	// the code, which the file tool marks with the same peer id)
 	const creams = createMemo(() =>
@@ -484,6 +496,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			handle.off("change", onChange)
 			codeBox.removeEventListener("focusin", typing)
 			codeBox.removeEventListener("focusout", away)
+			clearTimeout(pointTimer)
 			here.stop()
 			observer.disconnect()
 			for (const file of files.values()) file.off()
@@ -565,8 +578,10 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						picked={block()}
 						turn={0}
 						flipped={flipped()}
-						others={dots()}
+						others={needles()}
+						pointers={mice()}
 						onPick={pick}
+						onPoint={point}
 					/>
 				</Show>
 				<Show when={showing() === "yarn"}>

@@ -1,15 +1,18 @@
 import {Presence, type DocHandle} from "@automerge/automerge-repo"
 import {createSignal} from "solid-js"
 
-// who else is here, gently: which block each of them is looking at, and
-// whether they're in its code. said over the scarf's own presence (nothing's
-// kept: it's gone when they are)
+// who else is here, gently: which block each of them is looking at, whether
+// they're in its code, and where their mouse is over the scarf. said over the
+// scarf's own presence (nothing's kept: it's gone when they are)
 
 export interface Here {
 	/** the block they've picked */
 	block: number
-	/** in the block's code: their needle's there, so their dot isn't */
+	/** in the block's code: their needle's there, so the one by the block isn't */
 	typing: boolean
+	/** where their mouse is over the scarf, in its own units (so it's where
+	 * they are whichever way you've moved it), or not over it */
+	at: readonly [number, number] | null
 }
 
 export interface Other extends Here {
@@ -27,6 +30,10 @@ export function creamOf(peerId: string) {
 	return `oklch(${(0.97 - t * 0.2).toFixed(3)} ${(0.025 + t * 0.05).toFixed(3)} ${(85 - t * 15).toFixed(1)})`
 }
 
+function pointAt(at: unknown) {
+	return Array.isArray(at) && at.length === 2 && at.every(n => Number.isFinite(n)) ? ([at[0], at[1]] as const) : null
+}
+
 export function scarfPresence(handle: DocHandle<unknown>, initial: Here) {
 	const presence = new Presence<Here>({handle})
 	const [others, setOthers] = createSignal<Other[]>([])
@@ -35,7 +42,12 @@ export function scarfPresence(handle: DocHandle<unknown>, initial: Here) {
 			presence
 				.getPeerStates()
 				.peers.filter(peer => typeof peer.value?.block === "number")
-				.map(peer => ({peerId: String(peer.peerId), block: peer.value.block, typing: !!peer.value.typing}))
+				.map(peer => ({
+					peerId: String(peer.peerId),
+					block: peer.value.block,
+					typing: !!peer.value.typing,
+					at: pointAt(peer.value.at),
+				}))
 				.sort((a, b) => (a.peerId < b.peerId ? -1 : 1)),
 		)
 	const events = ["update", "snapshot", "goodbye", "pruned"] as const
