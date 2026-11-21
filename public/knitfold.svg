@@ -1,28 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-	<!-- knitfold: a cone of yarn, in sepia, on antique linen -->
+	<!-- a cone of antique-linen yarn on knitfold's paper: its kraft tube
+	     peeking out the top, the winding in soft hairlines, and a loose end
+	     of riso-rose thread wandering off -->
 	<defs>
-		<linearGradient id="yarn" x1="0" x2="1">
-			<stop offset="0" stop-color="#b58e64"/>
-			<stop offset="0.45" stop-color="#d9bc94"/>
-			<stop offset="1" stop-color="#a47c55"/>
+		<linearGradient id="yarn" x1="0" x2="1" y1="0" y2="0">
+			<stop offset="0" stop-color="#e6d1b6"/>
+			<stop offset="0.45" stop-color="#faebd7"/>
+			<stop offset="1" stop-color="#e0c9ac"/>
+		</linearGradient>
+		<linearGradient id="tube" x1="0" x2="1" y1="0" y2="0">
+			<stop offset="0" stop-color="#c9a67d"/>
+			<stop offset="0.5" stop-color="#dfc29b"/>
+			<stop offset="1" stop-color="#c29e74"/>
 		</linearGradient>
 		<clipPath id="cone">
-			<path d="M25 17h14l9.5 35a16.5 4.5 0 0 1-33 0z"/>
+			<path d="M24 20 14 50a18 4.5 0 0 0 36 0L40 20Z"/>
 		</clipPath>
 	</defs>
-	<rect width="64" height="64" rx="14" fill="#f1e7d3"/>
-	<rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="#e3d5bb" stroke-width="2"/>
-	<!-- the tube, peeping out of the top -->
-	<path d="M28.5 8h7l1 10h-9z" fill="#c9ad86" stroke="#7d6047" stroke-width="1.5" stroke-linejoin="round"/>
-	<ellipse cx="32" cy="8" rx="3.5" ry="1.2" fill="#9c7d5e"/>
-	<!-- the yarn wound on it -->
-	<path d="M25 17h14l9.5 35a16.5 4.5 0 0 1-33 0z" fill="url(#yarn)"/>
-	<g clip-path="url(#cone)" fill="none" stroke="#8d6b4b" stroke-width="1" stroke-opacity="0.45">
-		<path d="M10 24q22 5 44 0M10 31q22 5 44 0M10 38q22 5 44 0M10 45q22 5 44 0"/>
-		<path d="M14 22 50 34M14 34 50 46" stroke-opacity="0.25"/>
+	<rect width="64" height="64" rx="14" fill="#fcf7f2"/>
+	<rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#e3d6d8" stroke-width="1.5"/>
+	<g stroke="#5f5367" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+		<!-- the yarn, and the top of its winding -->
+		<path d="M24 20 14 50a18 4.5 0 0 0 36 0L40 20" fill="url(#yarn)"/>
+		<ellipse cx="32" cy="20" rx="8" ry="2.4" fill="#f1dfc6"/>
+		<g clip-path="url(#cone)" fill="none" stroke="#c9ab88" stroke-width="1.2">
+			<path d="M20 29c4 2.4 20 2.4 24 0"/>
+			<path d="M18 36c5 2.8 23 2.8 28 0"/>
+			<path d="M16.5 43c6 3 25 3 31 0"/>
+		</g>
+		<!-- the tube, coming up out of it -->
+		<path d="M28.5 9 27.5 20a4.5 1.3 0 0 0 9 0L35.5 9Z" fill="url(#tube)"/>
+		<ellipse cx="32" cy="9" rx="3.5" ry="1.2" fill="#9c7a55"/>
+		<!-- the loose end -->
+		<path d="M46.2 37c3.2.4 4.6 2.8 4 6s-.4 5.6 3.6 7.6" fill="none" stroke="#c8336c" stroke-opacity="0.75"/>
 	</g>
-	<path d="M25 17h14l9.5 35a16.5 4.5 0 0 1-33 0z" fill="none" stroke="#7d6047" stroke-width="1.5" stroke-linejoin="round"/>
-	<ellipse cx="32" cy="17" rx="7" ry="1.6" fill="#e3caa4" stroke="#7d6047" stroke-width="1.2"/>
-	<!-- its loose end -->
-	<path d="M47 44c5 2 8 6 6 11" fill="none" stroke="#a47c55" stroke-width="1.6" stroke-linecap="round"/>
 </svg>
