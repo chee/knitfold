@@ -78,25 +78,10 @@ export default function Toolbar(props: {
 	onDownload: () => void
 	onDownloadKcode: () => void
 }) {
-	type Which = "yarn" | "plating" | "download"
+	type Which = "yarn" | "plating" | "download" | "remove"
 	const [open, setOpen] = createSignal<Which | null>(null)
 	const toggle = (which: Which) => setOpen(now => (now === which ? null : which))
 	const close = () => setOpen(null)
-
-	// removing's two clicks: the second within a moment of the first
-	const [removing, setRemoving] = createSignal(false)
-	let removingTimer: ReturnType<typeof setTimeout> | undefined
-	function remove() {
-		if (!removing()) {
-			setRemoving(true)
-			clearTimeout(removingTimer)
-			removingTimer = setTimeout(() => setRemoving(false), 2500)
-			return
-		}
-		setRemoving(false)
-		props.onRemove()
-	}
-	onSettled(() => () => clearTimeout(removingTimer))
 
 	// the yarns to choose from: knitfold's, then the scarf's own
 	const choices = () => [...YARNS, ...props.yarns.filter(colour => !YARNS.includes(colour))]
@@ -174,15 +159,22 @@ export default function Toolbar(props: {
 				<button class="knitfold-toolbutton" title="new block" aria-label="new block" onClick={() => props.onAdd()}>
 					<Icon name="add" />
 				</button>
-				<button
-					class="knitfold-toolbutton"
-					data-danger={removing() ? "" : undefined}
-					disabled={props.blocks <= 1}
-					title={removing() ? "again, to take it out" : "take this block out"}
-					aria-label="remove the block"
-					onClick={remove}>
-					<Icon name="remove" />
-				</button>
+				<div class="knitfold-holder">
+					<button
+						class="knitfold-toolbutton"
+						aria-pressed={open() === "remove" ? "true" : "false"}
+						disabled={props.blocks <= 1}
+						title="take this block out"
+						aria-label="remove the block"
+						onClick={() => toggle("remove")}>
+						<Icon name="remove" />
+					</button>
+					<Pop open={open() === "remove"} onClose={close}>
+						<button class="knitfold-sizebutton knitfold-delete" onClick={() => (props.onRemove(), close())}>
+							Delete?
+						</button>
+					</Pop>
+				</div>
 			</div>
 
 			<div class="knitfold-group">
