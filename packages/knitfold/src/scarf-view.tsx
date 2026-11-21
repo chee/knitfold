@@ -39,6 +39,8 @@ export default function ScarfView(props: {
 	flipped: boolean
 	/** the line beside each block (not for one block alone) */
 	lines?: boolean
+	/** who else is here: a dot each, by the block they're looking at */
+	others?: {peerId: string; block: number}[]
 	onPick: (block: number) => void
 }) {
 	let box!: HTMLDivElement
@@ -84,6 +86,24 @@ export default function ScarfView(props: {
 			return across
 				? {axis: "x", left: at.left, top: whole.bottom + 4, width: at.right - at.left, height: 12}
 				: {axis: "y", left: whole.left - 16, top: at.top, width: 12, height: at.bottom - at.top}
+		})
+	})
+
+	// the others' dots: beside their block's line, a row of them, outwards
+	// from it, if there's more than one there
+	const DOT = 9
+	const dots = createMemo(() => {
+		const at = tabs()
+		const seen = new Map<number, number>()
+		return (props.others ?? []).flatMap(other => {
+			const tab = at[other.block]
+			if (!tab) return []
+			const k = seen.get(other.block) ?? 0
+			seen.set(other.block, k + 1)
+			const step = (DOT + 2) * k
+			return tab.axis === "y"
+				? [{peerId: other.peerId, left: tab.left - DOT - step, top: tab.top + tab.height / 2 - DOT / 2}]
+				: [{peerId: other.peerId, left: tab.left + tab.width / 2 - DOT / 2, top: tab.top + tab.height + step}]
 		})
 	})
 
@@ -251,6 +271,19 @@ export default function ScarfView(props: {
 					)}
 				</For>
 			</ol>
+			<For each={dots()} keyed={false}>
+				{dot => (
+					<svg
+						class="knitfold-other"
+						data-peer-id={dot().peerId}
+						viewBox="0 0 18 18"
+						aria-hidden="true"
+						style={{left: `${dot().left}px`, top: `${dot().top}px`}}>
+						<circle class="knitfold-other-ball" cx="9" cy="9" r="8" />
+						<path class="knitfold-other-strands" d="M4 5.5c3 1.8 6.5 5 8.5 8.5M7 2.5c3 2 6 5.4 7.6 8.6M2.6 9.5c2.4-2.2 6.6-4.4 11-4.6" />
+					</svg>
+				)}
+			</For>
 		</div>
 	)
 }

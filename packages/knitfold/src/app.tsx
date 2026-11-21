@@ -12,6 +12,7 @@ import {runner, Superseded} from "./runner.ts"
 import ScarfView, {type StitchScene} from "./scarf-view.tsx"
 import Toolbar, {Icon, VIEWS, type ViewName} from "./toolbar.tsx"
 import {knitoutOf} from "./knitout.ts"
+import {creamOf, scarfPresence} from "./presence.ts"
 import "./knitfold.css"
 import {addFonts} from "./fonts.ts"
 
@@ -435,9 +436,32 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 
 
+	// ── who else is here: a dot by the block each's looking at, or, in its
+	// code, a needle where they are (the file tool's caret, made one)
+
+	const here = scarfPresence(handle, {block: block(), typing: false})
+	createEffect(block, n => here.say("block", n))
+	const dots = createMemo(() => here.others().filter(other => !other.typing))
+	// (each one's cream, wherever they're seen: their dot here, their caret in
+	// the code, which the file tool marks with the same peer id)
+	const creams = createMemo(() =>
+		here
+			.others()
+			.map(other => `.knitfold [data-peer-id="${CSS.escape(other.peerId)}"] { --knitfold-them: ${creamOf(other.peerId)}; }`)
+			.join("\n"),
+	)
+	let codeBox!: HTMLDivElement
+
 	onSettled(() => {
 		const onChange = () => setDoc(handle.doc())
 		handle.on("change", onChange)
+		// (in the block's code: typing, as far as the others are told)
+		const typing = () => here.say("typing", codeBox.contains(document.activeElement))
+		const away = (event: FocusEvent) => {
+			if (!codeBox.contains(event.relatedTarget as Node | null)) here.say("typing", false)
+		}
+		codeBox.addEventListener("focusin", typing)
+		codeBox.addEventListener("focusout", away)
 		// a scarf from before blocks were files: each block's code, a file
 		const old = handle.doc()?.blocks ?? []
 		if (old.some(b => !b.file)) {
@@ -458,6 +482,9 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		return () => {
 			narrowQuery.removeEventListener("change", onNarrow)
 			handle.off("change", onChange)
+			codeBox.removeEventListener("focusin", typing)
+			codeBox.removeEventListener("focusout", away)
+			here.stop()
 			observer.disconnect()
 			for (const file of files.values()) file.off()
 			grids.destroy()
@@ -500,6 +527,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 	return (
 		<div class="knitfold" data-page={page()}>
+			<style>{creams()}</style>
 			<Toolbar
 				showing={showing()}
 				onShow={show}
@@ -537,6 +565,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						picked={block()}
 						turn={0}
 						flipped={flipped()}
+						others={dots()}
 						onPick={pick}
 					/>
 				</Show>
@@ -652,7 +681,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 					</Show>
 				</div>
 
-				<div class="knitfold-code">
+				<div class="knitfold-code" ref={codeBox}>
 					<Show when={pickedFile()} keyed>
 						{url => <CodePane url={url} />}
 					</Show>

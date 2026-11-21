@@ -1,6 +1,7 @@
 import type {AutomergeUrl, DocHandle, Repo} from "@automerge/automerge-repo"
 import {createMemo, Loading, Show} from "solid-js"
 import {render} from "@solidjs/web"
+import {accept, type SubscribeEvent} from "@inkandswitch/patchwork-providers"
 import Knitfold from "./app.tsx"
 import type {KnitfoldDoc} from "./datatype.ts"
 
@@ -26,11 +27,39 @@ function Frame(props: {element: HTMLElement}) {
 	)
 }
 
-export default function KnitfoldFrame(_account: DocHandle<unknown>, element: HTMLElement) {
+// who you are, for whoever inside asks (patchwork's frame would say, and
+// knitfold's is instead of it): the file tool won't show anyone's caret, or
+// say where yours is, till it's told
+function provideContact(account: DocHandle<{contactUrl?: string}>, element: HTMLElement) {
+	const contactUrl = () =>
+		new Promise<string>(resolve => {
+			const now = account.doc()?.contactUrl
+			if (now) return resolve(now)
+			const later = () => {
+				const url = account.doc()?.contactUrl
+				if (url) account.off("change", later), resolve(url)
+			}
+			account.on("change", later)
+		})
+	const answer = (event: SubscribeEvent) => {
+		if (event.detail.selector.type !== "patchwork:contact") return
+		accept<string>(event, respond => {
+			let gone = false
+			contactUrl().then(url => gone || respond(url))
+			return () => (gone = true)
+		})
+	}
+	element.addEventListener("patchwork:subscribe", answer)
+	return () => element.removeEventListener("patchwork:subscribe", answer)
+}
+
+export default function KnitfoldFrame(account: DocHandle<{contactUrl?: string}>, element: HTMLElement) {
 	element.classList.add("knitfold-frame")
+	const unprovide = provideContact(account, element)
 	const dispose = render(() => <Frame element={element} />, element)
 	return () => {
 		dispose()
+		unprovide()
 		element.classList.remove("knitfold-frame")
 	}
 }
