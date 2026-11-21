@@ -13,7 +13,7 @@
 		--knitfold-hover: color-mix(in oklch, var(--editor-fill, #fcf7f2), var(--studio-warning, #ffd84a) 22%);
 		--knitfold-accent: var(--studio-primary, #c8336c);
 		--knitfold-accent-soft: color-mix(in oklch, var(--studio-primary, #c8336c) 14%, var(--editor-fill, #fcf7f2));
-		--knitfold-danger: var(--knitfold-danger);
+		--knitfold-danger: var(--studio-danger, #d0342c);
 		--knitfold-selection: var(--editor-selection-fill, var(--studio-selection-fill, #ffef8acc));
 		--knitfold-cursor: var(--editor-cursor-fill, #c8336c);
 		--knitfold-family: "Iosevka Rabbits", ui-monospace, monospace;
@@ -484,7 +484,10 @@
 
 	/* and one that couldn't be (it says why, hovered) */
 	& .knitfold-ungot {
-		text-decoration: underline wavy var(--knitfold-danger) 1px;
+		text-decoration-line: underline;
+		text-decoration-style: wavy;
+		text-decoration-color: var(--knitfold-danger);
+		text-decoration-thickness: 1px;
 		text-underline-offset: 3px;
 	}
 
