@@ -19,7 +19,21 @@ import {addFonts} from "./fonts.ts"
 // the first block knitted at the bottom; on the right, the picked block as a
 // chart, and its code under it
 
-const NEW_BLOCK = `// a new block
+const NEW_BLOCK = `// a new block by you
+// everyone shares a scarf, btw
+// you have sin, cos, PI, etc avail
+// y is row, x is col
+// code is an expression
+// expression's result is a numbered stitch or technique
+// over an area, techniques provide a texture
+// 0-6, each with a shorthand global variable
+// 0 - back bed (b)
+// 1 - front bed (f)
+// 2 - garter (g)
+// 3 - seed/moss (s)
+// 4 - 1x1 rib (r) (r1)
+// 5 - 2x2 rib (r2)
+// 6 - 1x2 rib (r3)
 (x + y) % 8 < 4 ? r1 : s`
 
 declare global {
