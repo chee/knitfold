@@ -1,6 +1,7 @@
 import {createEffect, createMemo, createSignal, For, onSettled} from "solid-js"
 import {stitchesLayout, type StitchColours} from "./glyphs.ts"
 import {openSurface, type Surface} from "./render-client.ts"
+import type {InkSpace} from "./anchor.ts"
 import {fitAll, screenBox, toScarf, toScreen, type Bounds, type Band, type View} from "./view.ts"
 
 // the whole scarf, still, as its stitches: all of it in the pane, the picked
@@ -13,6 +14,8 @@ import {fitAll, screenBox, toScarf, toScreen, type Bounds, type Band, type View}
 // builds the picture and paints it
 
 const CLICK = 4
+
+type Spaced = HTMLDivElement & {inkSpace?: InkSpace}
 
 /** what's drawn: the blocks' stitches, and their colours */
 export interface StitchScene {
@@ -41,11 +44,7 @@ export default function ScarfView(props: {
 	lines?: boolean
 	/** who else is here: a needle each, by the block they're looking at */
 	others?: {peerId: string; block: number}[]
-	/** and their mice: a ball of yarn each, where theirs is over the scarf */
-	pointers?: {peerId: string; at: readonly [number, number]}[]
 	onPick: (block: number) => void
-	/** where yours is over it (in the scarf's units), or that it's gone */
-	onPoint?: (at: readonly [number, number] | null) => void
 }) {
 	let box!: HTMLDivElement
 	let canvas!: HTMLCanvasElement
@@ -111,29 +110,6 @@ export default function ScarfView(props: {
 		})
 	})
 
-	// the others' mice: their balls of yarn, where they are on the scarf as
-	// it is here (and not, if that's out of the pane)
-	const BALL = 9
-	const balls = createMemo(() => {
-		const v = view()
-		const {width, height} = size()
-		if (!v) return []
-		return (props.pointers ?? []).flatMap(other => {
-			const [left, top] = toScreen(v, other.at[0], other.at[1])
-			if (left < 0 || top < 0 || left > width || top > height) return []
-			return [{peerId: other.peerId, left: left - BALL / 2, top: top - BALL / 2}]
-		})
-	})
-
-	// yours, to them: where it is over the scarf, a little at a time
-	function point(event: PointerEvent) {
-		const v = view()
-		if (!v || !props.onPoint || event.pointerType === "touch") return
-		const rect = canvas.getBoundingClientRect()
-		const [x, y] = toScarf(v, event.clientX - rect.left, event.clientY - rect.top)
-		props.onPoint([Math.round(x * 100) / 100, Math.round(y * 100) / 100])
-	}
-	const unpoint = () => props.onPoint?.(null)
 
 	// to the worker: the stitches when they change, the view when it does
 	createEffect(
@@ -221,7 +197,6 @@ export default function ScarfView(props: {
 	}
 
 	function onPointerMove(event: PointerEvent) {
-		point(event)
 		if (!pointers.has(event.pointerId) || !gesture) return
 		pointers.set(event.pointerId, {x: event.clientX, y: event.clientY})
 		const now = where()
@@ -264,8 +239,26 @@ export default function ScarfView(props: {
 		})
 		observer.observe(box)
 		canvas.addEventListener("wheel", onWheel, {passive: false})
+		// for the others' mice (anchor.ts): a point on the page is one on the
+		// scarf, in its own units, and back, as it's moved and zoomed here
+		;(box as Spaced).inkSpace = {
+			at(x, y) {
+				const v = view()
+				if (!v) return null
+				const rect = canvas.getBoundingClientRect()
+				const [sx, sy] = toScarf(v, x - rect.left, y - rect.top)
+				return [Math.round(sx * 100) / 100, Math.round(sy * 100) / 100]
+			},
+			place(at) {
+				const v = view()
+				if (!v || !Array.isArray(at) || !at.every(Number.isFinite)) return null
+				const rect = canvas.getBoundingClientRect()
+				const [px, py] = toScreen(v, at[0], at[1])
+				return {x: rect.left + px, y: rect.top + py, scale: v.scale}
+			},
+		}
 		return () => {
-			unpoint()
+			delete (box as Spaced).inkSpace
 			observer.disconnect()
 			canvas.removeEventListener("wheel", onWheel)
 			surface?.close()
@@ -281,7 +274,6 @@ export default function ScarfView(props: {
 				onPointerMove={onPointerMove}
 				onPointerUp={onPointerUp}
 				onPointerCancel={onPointerUp}
-				onPointerLeave={unpoint}
 				onDblClick={() => setPlaced(null)}
 			/>
 			<ol class="knitfold-tabs" aria-label="blocks">
@@ -311,19 +303,6 @@ export default function ScarfView(props: {
 						aria-hidden="true"
 						style={{left: `${needle().left}px`, top: `${needle().top}px`}}>
 						<path d="M1 14V2.2a1.2 1.2 0 0 1 2.4 0V3.2" />
-					</svg>
-				)}
-			</For>
-			<For each={balls()} keyed={false}>
-				{ball => (
-					<svg
-						class="knitfold-other-mouse"
-						data-peer-id={ball().peerId}
-						viewBox="0 0 18 18"
-						aria-hidden="true"
-						style={{transform: `translate(${ball().left}px, ${ball().top}px)`}}>
-						<circle class="knitfold-other-ball" cx="9" cy="9" r="8" />
-						<path class="knitfold-other-strands" d="M4 5.5c3 1.8 6.5 5 8.5 8.5M7 2.5c3 2 6 5.4 7.6 8.6M2.6 9.5c2.4-2.2 6.6-4.4 11-4.6" />
 					</svg>
 				)}
 			</For>

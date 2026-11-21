@@ -13,6 +13,8 @@ import ScarfView, {type StitchScene} from "./scarf-view.tsx"
 import Toolbar, {Icon, VIEWS, type ViewName} from "./toolbar.tsx"
 import {knitoutOf} from "./knitout.ts"
 import {creamOf, scarfPresence} from "./presence.ts"
+import {pointerAt} from "./anchor.ts"
+import Mice from "./mice.tsx"
 import "./knitfold.css"
 import {addFonts} from "./fonts.ts"
 
@@ -437,24 +439,32 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 
 	// ── who else is here: a needle by the block each's looking at, or, in its
-	// code, where they are (the file tool's caret, made one); and over the
-	// scarf, a ball of yarn where their mouse is
+	// code, where they are (the file tool's caret, made one); and anywhere in
+	// knitfold, a ball of yarn on what their mouse (or finger) is over
 
-	const here = scarfPresence(handle, {block: block(), typing: false, at: null})
+	const here = scarfPresence(handle, {block: block(), typing: false, pointer: null})
 	createEffect(block, n => here.say("block", n))
 	const needles = createMemo(() => here.others().filter(other => !other.typing))
-	const mice = createMemo(() => here.others().flatMap(other => (other.at ? [{peerId: other.peerId, at: other.at}] : [])))
-	// (yours, said at most every 50ms: the last of them, always)
-	let pointing: readonly [number, number] | null = null
+	const mice = createMemo(() =>
+		here.others().flatMap(other => (other.pointer ? [{peerId: other.peerId, pointer: other.pointer}] : [])),
+	)
+	// (how the parts with views of their own are showing them: a ball's only
+	// placed on the same view it was over)
+	const views = createMemo(() => ({scarf: showing(), block: blockView()}))
+	let root!: HTMLDivElement
+	// yours: where it is (client px), worked out into what it's over at most
+	// every POINT_EVERY, and again as that moves under it (scrolled, zoomed)
+	const POINT_EVERY = 50
+	let pointing: {x: number; y: number} | null = null
 	let pointTimer: ReturnType<typeof setTimeout> | undefined
-	function point(at: readonly [number, number] | null) {
+	function point(at: {x: number; y: number} | null) {
 		pointing = at
 		pointTimer ??= setTimeout(() => {
 			pointTimer = undefined
-			here.say("at", pointing)
-		}, 50)
+			here.say("pointer", pointing && pointerAt(root, pointing.x, pointing.y, block(), views()))
+		}, POINT_EVERY)
 	}
-	// (each one's cream, wherever they're seen: their dot here, their caret in
+	// (each one's cream, wherever they're seen: their ball and needle here, their caret in
 	// the code, which the file tool marks with the same peer id)
 	const creams = createMemo(() =>
 		here
@@ -474,6 +484,18 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		}
 		codeBox.addEventListener("focusin", typing)
 		codeBox.addEventListener("focusout", away)
+		// (a finger's left where it was last: a mouse is gone when it goes)
+		const onPoint = (event: PointerEvent) => point({x: event.clientX, y: event.clientY})
+		const onLeave = (event: PointerEvent) => event.pointerType !== "touch" && point(null)
+		const again = () => pointing && point(pointing)
+		const onHidden = () => document.visibilityState === "hidden" && point(null)
+		const listening = {capture: true, passive: true}
+		root.addEventListener("pointerdown", onPoint, listening)
+		root.addEventListener("pointermove", onPoint, listening)
+		root.addEventListener("pointerleave", onLeave)
+		root.addEventListener("wheel", again, listening)
+		root.addEventListener("scroll", again, listening)
+		document.addEventListener("visibilitychange", onHidden)
 		// a scarf from before blocks were files: each block's code, a file
 		const old = handle.doc()?.blocks ?? []
 		if (old.some(b => !b.file)) {
@@ -496,6 +518,12 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			handle.off("change", onChange)
 			codeBox.removeEventListener("focusin", typing)
 			codeBox.removeEventListener("focusout", away)
+			root.removeEventListener("pointerdown", onPoint, listening)
+			root.removeEventListener("pointermove", onPoint, listening)
+			root.removeEventListener("pointerleave", onLeave)
+			root.removeEventListener("wheel", again, listening)
+			root.removeEventListener("scroll", again, listening)
+			document.removeEventListener("visibilitychange", onHidden)
 			clearTimeout(pointTimer)
 			here.stop()
 			observer.disconnect()
@@ -539,8 +567,9 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	const pickedFile = () => blocks()[block()]?.file ?? null
 
 	return (
-		<div class="knitfold" data-page={page()}>
+		<div class="knitfold" data-page={page()} ref={root}>
 			<style>{creams()}</style>
+			<Mice root={() => root} mice={mice()} block={block()} views={views()} />
 			<Toolbar
 				showing={showing()}
 				onShow={show}
@@ -579,9 +608,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						turn={0}
 						flipped={flipped()}
 						others={needles()}
-						pointers={mice()}
 						onPick={pick}
-						onPoint={point}
 					/>
 				</Show>
 				<Show when={showing() === "yarn"}>

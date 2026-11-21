@@ -191,13 +191,21 @@
 	}
 }
 
-/* (its place said a few times a second: eased between, so it glides) */
+/* over all of knitfold, the others' mice (mice.tsx places them, every
+   frame) */
+.knitfold .knitfold-mice {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	overflow: hidden;
+	pointer-events: none;
+}
+
 .knitfold .knitfold-other-mouse {
 	top: 0;
 	left: 0;
-	width: 9px;
-	height: 9px;
-	transition: transform 60ms linear;
+	width: 6px;
+	height: 6px;
 	animation: knitfold-arrive 0.8s ease-out;
 }
 
