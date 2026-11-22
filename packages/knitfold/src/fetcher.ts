@@ -1,5 +1,5 @@
 import {isValidAutomergeUrl, type AutomergeUrl} from "@automerge/automerge-repo"
-import {createSignal} from "solid-js"
+import {createMemo, createSignal} from "solid-js"
 import {findPatiently} from "./find.ts"
 import {keyOf, type GetAs, type Given, type Wanted} from "./given.ts"
 
@@ -8,20 +8,34 @@ import {keyOf, type GetAs, type Given, type Wanted} from "./given.ts"
 // and the blocks are run again with it. a get's fetched once, and made what
 // it's asked to be (or, clever, what it looks like it ought to be)
 
+/** something being got, and how far it's got */
+export interface Fetching {
+	/** what it is, short: a url's host and path, a doc's url */
+	label: string
+	/** looking for a doc; fetching what's at a url; or making a sound or a
+	 * picture of what's been fetched */
+	phase: "finding" | "fetching" | "decoding"
+	/** bytes fetched so far, and of how many (if it said) */
+	received: number
+	total: number | null
+}
+
 export function fetcher() {
 	const [given, setGiven] = createSignal<Given>({})
-	// (what's being got, not got yet: the editor marks them)
-	const [loading, setLoading] = createSignal<ReadonlySet<string>>(new Set())
+	// (what's being got, not got yet, and how far: shown as it goes)
+	const [progress, setProgress] = createSignal<Readonly<Record<string, Fetching>>>({})
+	const loading = createMemo<ReadonlySet<string>>(() => new Set(Object.keys(progress())))
 	const started = new Map<string, () => void>()
 	let stopped = false
 
+	const update = (key: string, change: Partial<Fetching>) =>
+		setProgress(all => (all[key] ? {...all, [key]: {...all[key], ...change}} : all))
 	const settle = (key: string, got: Given[string]) => {
 		setGiven(all => ({...all, [key]: got}))
-		setLoading(now => {
-			if (!now.has(key)) return now
-			const next = new Set(now)
-			next.delete(key)
-			return next
+		setProgress(all => {
+			if (!all[key]) return all
+			const {[key]: _, ...rest} = all
+			return rest
 		})
 	}
 
@@ -30,7 +44,8 @@ export function fetcher() {
 			const key = keyOf(wanted)
 			if (started.has(key) || stopped) continue
 			started.set(key, () => {})
-			setLoading(now => new Set(now).add(key))
+			const label = wanted.kind === "doc" ? wanted.url : shortUrl(wanted.url)
+			setProgress(all => ({...all, [key]: {label, phase: wanted.kind === "doc" ? "finding" : "fetching", received: 0, total: null}}))
 			if (wanted.kind === "doc") getDoc(key, wanted.url)
 			else getUrl(key, wanted.url, wanted.as)
 		}
@@ -62,7 +77,10 @@ export function fetcher() {
 		fetch(address)
 			.then(async response => {
 				if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
-				return decode(response, as)
+				const fetched = await readAll(response, (received, total) => update(key, {received, total}))
+				const type = response.headers.get("content-type") ?? ""
+				if (as === "clever" && /^(audio|image)\/|application\/ogg/.test(type)) update(key, {phase: "decoding"})
+				return decode(fetched, as)
 			})
 			.then(
 				value => stopped || settle(key, {value}),
@@ -75,6 +93,8 @@ export function fetcher() {
 		given,
 		/** what's still being got */
 		loading,
+		/** and how far each's got */
+		progress,
 		/** what a run wanted (and hadn't got) */
 		want,
 		stop() {
@@ -82,6 +102,41 @@ export function fetcher() {
 			for (const off of started.values()) off()
 			started.clear()
 		},
+	}
+}
+
+// a response's body, all of it, saying how much has come as it comes (a
+// few times a second), as a response again to be read as it's asked to be
+async function readAll(response: Response, saying: (received: number, total: number | null) => void) {
+	const length = Number(response.headers.get("content-length"))
+	const total = Number.isFinite(length) && length > 0 ? length : null
+	if (!response.body) return response
+	const reader = response.body.getReader()
+	const chunks: Uint8Array[] = []
+	let received = 0
+	let said = 0
+	for (;;) {
+		const {done, value} = await reader.read()
+		if (done) break
+		chunks.push(value)
+		received += value.length
+		if (performance.now() - said > 150) {
+			said = performance.now()
+			saying(received, total)
+		}
+	}
+	saying(received, total)
+	return new Response(new Blob(chunks as BlobPart[]), {status: response.status, headers: response.headers})
+}
+
+// a url, short: its host (without www.) and path
+export function shortUrl(url: string) {
+	try {
+		const {host, pathname, protocol} = new URL(url, location.href)
+		if (protocol === "data:") return "data:…"
+		return `${host.replace(/^www\./, "")}${pathname === "/" ? "" : pathname}`
+	} catch {
+		return url
 	}
 }
 

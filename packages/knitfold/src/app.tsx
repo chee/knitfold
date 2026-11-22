@@ -15,7 +15,7 @@ import ScarfView, {type StitchScene} from "./scarf-view.tsx"
 import Toolbar, {Icon, VIEWS, type ViewName} from "./toolbar.tsx"
 import {knitoutOf} from "./knitout.ts"
 import {findPatiently} from "./find.ts"
-import {fetcher} from "./fetcher.ts"
+import {fetcher, type Fetching} from "./fetcher.ts"
 import {overloadsOf, type Given} from "./given.ts"
 import {declarationsWith} from "./declarations.ts"
 import {creamOf, scarfPresence} from "./presence.ts"
@@ -104,6 +104,19 @@ function themeColours(element: HTMLElement) {
 		}
 	})
 	return colours
+}
+
+// how far something being got has got: "340 kB of 1.2 MB", "decoding…"
+function size(bytes: number) {
+	if (bytes < 1000) return `${bytes} B`
+	if (bytes < 1_000_000) return `${Math.round(bytes / 1000)} kB`
+	return `${(bytes / 1_000_000).toFixed(1)} MB`
+}
+function howFar(item: Fetching) {
+	if (item.phase === "finding") return "finding…"
+	if (item.phase === "decoding") return "decoding…"
+	if (item.total) return `${size(item.received)} of ${size(item.total)}`
+	return item.received ? `${size(item.received)}…` : "fetching…"
 }
 
 export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element: HTMLElement}) {
@@ -648,6 +661,10 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	}
 
 
+	// (what doc() and get() are getting, and how far: said under the code)
+	const fetching = createMemo(() => Object.values(got.progress()))
+	const waiting = createMemo(() => result()?.blocks.map(b => !!b.pending) ?? [])
+
 	const problemText = () => {
 		const p = problem() ?? blockResult()?.error
 		return p ? (typeof p === "string" ? p : p.message) : ""
@@ -702,6 +719,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						turn={0}
 						flipped={flipped()}
 						others={needles()}
+						waiting={waiting()}
 						onPick={pick}
 					/>
 				</Show>
@@ -759,7 +777,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						</For>
 					</div>
 					<Show when={blockView() === "chart"}>
-						<div class="knitfold-dots">
+						<div class="knitfold-dots" data-waiting={blockResult()?.pending ? "" : undefined}>
 							<ChartView
 								stitches={blockStitches()}
 								width={width()}
@@ -824,6 +842,26 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						{url => <CodePane url={url} declarations={declarations} loading={got.loading} failed={failed} />}
 					</Show>
 				</div>
+
+				<Show when={fetching().length}>
+					<div class="knitfold-fetching" role="status" aria-live="polite">
+						<For each={fetching()} keyed={false}>
+							{item => (
+								<div class="knitfold-fetch">
+									<span class="knitfold-fetch-what" title={item().label}>
+										{item().label}
+									</span>
+									<span class="knitfold-fetch-how">{howFar(item())}</span>
+									<span
+										class="knitfold-fetch-bar"
+										data-unknown={item().phase !== "fetching" || !item().total ? "" : undefined}
+										style={{"--done": String(item().total ? item().received / item().total! : 0)}}
+									/>
+								</div>
+							)}
+						</For>
+					</div>
+				</Show>
 
 				<Show when={problemText()}>
 					<div class="knitfold-problem" role="status">

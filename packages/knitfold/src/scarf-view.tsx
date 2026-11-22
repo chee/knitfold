@@ -44,6 +44,8 @@ export default function ScarfView(props: {
 	lines?: boolean
 	/** who else is here: a needle each, by the block they're looking at */
 	others?: {peerId: string; block: number}[]
+	/** each block: is it waiting for something (a doc, a get) */
+	waiting?: boolean[]
 	onPick: (block: number) => void
 }) {
 	let box!: HTMLDivElement
@@ -283,6 +285,7 @@ export default function ScarfView(props: {
 							class="knitfold-tab"
 							data-axis={tab().axis}
 							data-picked={n === props.picked ? "" : undefined}
+							data-waiting={props.waiting?.[n] ? "" : undefined}
 							style={{
 								left: `${tab().left}px`,
 								top: `${tab().top}px`,

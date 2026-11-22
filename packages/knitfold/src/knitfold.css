@@ -645,6 +645,86 @@
 	}
 }
 
+/* what doc() and get() are getting, under the code: what, how far, and a
+   hairline that fills as it comes (or, not knowing how far, goes back and
+   forth) */
+.knitfold .knitfold-fetching {
+	display: grid;
+	gap: 4px;
+	padding: 6px 12px 7px;
+	border-top: 1px solid var(--knitfold-rule);
+	font: 12px/1.4 var(--knitfold-family-code);
+	color: var(--knitfold-muted);
+}
+
+.knitfold .knitfold-fetch {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	column-gap: 12px;
+	row-gap: 3px;
+	animation: knitfold-arrive 0.3s ease-out;
+}
+
+.knitfold .knitfold-fetch-what {
+	overflow: hidden;
+	color: var(--knitfold-ink);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.knitfold .knitfold-fetch-bar {
+	grid-column: 1 / -1;
+	position: relative;
+	height: 1px;
+	overflow: hidden;
+	background: var(--knitfold-rule);
+
+	&::after {
+		position: absolute;
+		inset: 0;
+		content: "";
+		background: var(--knitfold-accent);
+		transform-origin: left;
+		transform: scaleX(var(--done, 0));
+		transition: transform 0.15s linear;
+	}
+
+	&[data-unknown]::after {
+		width: 30%;
+		transform: none;
+		animation: knitfold-to-and-fro 1.2s ease-in-out infinite alternate;
+	}
+}
+
+@keyframes knitfold-to-and-fro {
+	from {
+		translate: -100% 0;
+	}
+	to {
+		translate: 333% 0;
+	}
+}
+
+/* a block that's waiting for something: its chart breathes, and its line
+   beside the scarf, in the accent */
+.knitfold .knitfold-dots[data-waiting] canvas {
+	animation: knitfold-waiting 1.1s ease-in-out infinite alternate;
+}
+
+.knitfold .knitfold-tab[data-waiting] button::after {
+	background: var(--knitfold-accent);
+	animation: knitfold-waiting 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes knitfold-waiting {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0.35;
+	}
+}
+
 .knitfold .knitfold-problem {
 	padding: 6px 12px;
 	font: 12px/1.4 var(--knitfold-family-code);
