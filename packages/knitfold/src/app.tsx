@@ -89,9 +89,38 @@ function themeColours(element: HTMLElement) {
 			wash: get("--knitfold-hover", "#fff6a8"),
 		}
 	}
-	const [colours, setColours] = createSignal(read())
+	const [colours, setColours] = createSignal(read(), {
+		equals: (a, b) => a.page === b.page && a.ink === b.ink && a.grid === b.grid && a.wash === b.wash,
+	})
 	onSettled(() => {
-		const again = () => requestAnimationFrame(() => setColours(read()))
+		let frame = 0
+		const again = () => {
+			cancelAnimationFrame(frame)
+			frame = requestAnimationFrame(() => setColours(read()))
+		}
+		// (a theme's attribute can change before its stylesheet's come, or its
+		// stylesheet can come with nothing changing at all: so what's watched
+		// is the colours themselves. a hidden thing in them, that eases between
+		// them, says when it starts to: whatever it was that changed them)
+		const probe = document.createElement("span")
+		probe.setAttribute("aria-hidden", "true")
+		probe.style.cssText = [
+			"position: absolute",
+			"width: 0",
+			"height: 0",
+			"overflow: hidden",
+			"visibility: hidden",
+			"pointer-events: none",
+			"color: var(--knitfold-page)",
+			"background-color: var(--knitfold-ink)",
+			"border-color: var(--knitfold-grid)",
+			"outline-color: var(--knitfold-hover)",
+			"transition: color 1ms, background-color 1ms, border-color 1ms, outline-color 1ms",
+			"transition-behavior: allow-discrete",
+		].join("; ")
+		element.append(probe)
+		probe.addEventListener("transitionrun", again)
+		probe.addEventListener("transitionend", again)
 		const observer = new MutationObserver(again)
 		observer.observe(document.documentElement, {attributes: true, attributeFilter: ["theme", "class", "style", "data-theme"]})
 		const media = matchMedia("(prefers-color-scheme: dark)")
@@ -99,6 +128,8 @@ function themeColours(element: HTMLElement) {
 		// (the stylesheet may land after the first read)
 		again()
 		return () => {
+			cancelAnimationFrame(frame)
+			probe.remove()
 			observer.disconnect()
 			media.removeEventListener("change", again)
 		}
