@@ -203,3 +203,42 @@ test("a sound: what's at a moment, and how loud a pitch is", async () => {
 	assert.equal(sound.power(3, 2000), 0)
 	assert.equal(typeOf({sampleRate, samples}), "Sound")
 })
+
+test("a top-level const is once: a let's every stitch's", () => {
+	let made = 0
+	const globals = {count: () => (made++, 7)}
+	const fn = compile("const k = count()\nlet j = x\nk + j", globals)
+	assert.equal(fn(1, 0, 0, 4, 4, 0), 8)
+	assert.equal(fn(2, 0, 0, 4, 4, 0), 9)
+	assert.equal(made, 1)
+	// (each run its own)
+	compile("const k = count()\nk", globals)(0, 0, 0, 4, 4, 0)
+	assert.equal(made, 2)
+	// (a let's, every stitch)
+	made = 0
+	const each = compile("let k = count()\nk", globals)
+	each(0, 0, 0, 4, 4, 0), each(1, 0, 0, 4, 4, 0)
+	assert.equal(made, 2)
+	// (a const that says the stitch, or a let, or something that does: every
+	// stitch's, as before)
+	const px = compile("const px = x * 2\npx")
+	assert.equal(px(1, 0, 0, 4, 4, 0), 2)
+	assert.equal(px(3, 0, 0, 4, 4, 0), 6)
+	const via = compile("let a = y\nconst b = a + 1\nconst c = b * 10\nc")
+	assert.equal(via(0, 1, 0, 4, 4, 0), 20)
+	assert.equal(via(0, 2, 0, 4, 4, 0), 30)
+	const fnOf = compile("function at() { return i }\nconst v = at()\nv")
+	assert.equal(fnOf(0, 0, 5, 4, 4, 0), 5)
+	assert.equal(fnOf(0, 0, 6, 4, 4, 0), 6)
+	// (a const's thing, kept: the same array for every stitch)
+	const shared = compile("const seen = []\nseen.push(x)\nseen.length")
+	assert.equal(shared(0, 0, 0, 4, 4, 0), 1)
+	assert.equal(shared(1, 0, 0, 4, 4, 0), 2)
+	// (inside a function or a block, a const's as it always was)
+	const inner = compile("let f = () => { const k = count(); k }\nf() + f()", globals)
+	made = 0
+	inner(0, 0, 0, 4, 4, 0)
+	assert.equal(made, 2)
+	// (destructured, and several at once)
+	assert.equal(compile("const {a, b} = {a: 1, b: 2}, c = a + b\nc + x")(1, 0, 0, 4, 4, 0), 4)
+})

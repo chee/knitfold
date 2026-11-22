@@ -5,6 +5,7 @@
 // bed or the back. every technique's a fabric of knits and purls
 
 import {withCompletion} from "./completion.ts"
+import {ONCE, withConstants} from "./constants.ts"
 import {HELPERS} from "./helpers.ts"
 
 export const Technique = {
@@ -101,7 +102,14 @@ export type BlockFunction = (
 // (and their old capitals, FRONT and so on, for blocks written with them).
 // col and row are x and y by other names
 export function compile(code: string, globals: Record<string, unknown> = {}): BlockFunction {
-	const scope = {...Object.fromEntries(TECHNIQUES.map(name => [name, Technique[name]])), ...NAMES, ...HELPERS, ...globals}
+	// (a top-level const is once, constants.ts: what each gives back the first
+	// time, kept for every stitch after. a run's own, each block's)
+	const kept = new Map<number, unknown>()
+	const once = (n: number, make: () => unknown) => {
+		if (!kept.has(n)) kept.set(n, make())
+		return kept.get(n)
+	}
+	const scope = {...Object.fromEntries(TECHNIQUES.map(name => [name, Technique[name]])), ...NAMES, ...HELPERS, [ONCE]: once, ...globals}
 	const wrap = (body: string) =>
 		new Function(
 			"scope",
@@ -114,7 +122,7 @@ export function compile(code: string, globals: Record<string, unknown> = {}): Bl
 		// (its functions' last values given back too)
 		return wrap(`return (${withCompletion(trimmed, {top: false}).replace(/;\s*$/, "")}\n)`)
 	} catch {
-		return wrap(withCompletion(code))
+		return wrap(withCompletion(withConstants(code)))
 	}
 }
 
