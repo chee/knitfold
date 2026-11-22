@@ -75,32 +75,17 @@ function asked(view: EditorView, call: SyntaxNode) {
 	return {key: keyOf(wanted), from: first.from, to: first.to}
 }
 
-// the editor's tooltips (hovers, completions, problems), each a popover: in
-// the page's top layer, so the pane's edges don't cut them off. (and so
-// they're placed as fixed ones are, from the window: codemirror only places
-// them from the editor when they've an offsetParent that isn't the page,
-// which, inside patchwork's contained views, they would; a popover hasn't.
-// they're lifted as they're put in, before codemirror measures them)
-const popoverTooltips = [
-	tooltips({position: "fixed"}),
-	ViewPlugin.define(view => {
-		const lift = (node: Node) => {
-			if (!(node instanceof HTMLElement) || !node.classList.contains("cm-tooltip")) return
-			if (!node.popover) node.popover = "manual"
-			if (!node.matches(":popover-open")) {
-				try {
-					node.showPopover()
-				} catch {
-					// (not in the page, after all: it'll be lifted when it is)
-				}
-			}
-		}
-		const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(lift)))
-		observer.observe(view.dom, {childList: true})
-		view.dom.querySelectorAll(":scope > .cm-tooltip").forEach(lift)
-		return {destroy: () => observer.disconnect()}
-	}),
-]
+// the editor's tooltips (hovers, completions, problems), in a layer of their
+// own: a popover, in the page's top layer, the whole window, so the pane's
+// edges don't cut them off. (codemirror places fixed tooltips from the
+// window, unless it thinks something's moved them: in safari, that's
+// whenever one has already been placed, and then it places them from their
+// parent instead. the layer's corner is the window's, so it's the same
+// place either way. and the tooltips aren't inside patchwork's contained
+// views, which would place fixed things from themselves)
+function tooltipLayer(layer: HTMLElement) {
+	return tooltips({position: "fixed", parent: layer})
+}
 
 const loadingMark = Decoration.mark({class: "knitfold-getting", attributes: {title: "getting it…"}})
 const refresh = StateEffect.define<null>()
@@ -157,6 +142,7 @@ export default function CodePane(props: {
 	failed: () => ReadonlyMap<string, string>
 }) {
 	let box!: HTMLDivElement
+	let layer!: HTMLDivElement
 	const views = new Set<EditorView>()
 	const clients = new Set<LspClient>()
 
@@ -191,7 +177,8 @@ export default function CodePane(props: {
 	)
 
 	onSettled(() => {
-		const extensions = [declarations, marks({loading: props.loading, failed: props.failed}), popoverTooltips]
+		layer.showPopover()
+		const extensions = [declarations, marks({loading: props.loading, failed: props.failed}), tooltipLayer(layer)]
 		const extend = (event: Event) => (event as CustomEvent<{extensions: unknown[]}>).detail.extensions.push(...extensions)
 		box.addEventListener(EXTENSIONS_EVENT, extend)
 		const view = document.createElement("patchwork-view")
@@ -201,7 +188,12 @@ export default function CodePane(props: {
 		return () => {
 			box.removeEventListener(EXTENSIONS_EVENT, extend)
 			view.remove()
+			if (layer.matches(":popover-open")) layer.hidePopover()
 		}
 	})
-	return <div class="knitfold-codepane" ref={box} />
+	return (
+		<div class="knitfold-codepane" ref={box}>
+			<div class="knitfold-tooltips" popover="manual" ref={layer} />
+		</div>
+	)
 }

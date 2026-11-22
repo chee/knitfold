@@ -3,8 +3,8 @@
 	"type": "module",
 	"private": true,
 	"dependencies": {
-		"@inkandswitch/patchwork": "^0.10.1",
-		"@inkandswitch/patchwork-pkg-base": "^0.0.164"
+		"@inkandswitch/patchwork": "0.10.1",
+		"@inkandswitch/patchwork-pkg-base": "^0.0.170"
 	},
 	"devDependencies": {
 		"vite": "^8.3.8"

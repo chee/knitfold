@@ -2,17 +2,21 @@
 	:root,
 	:host,
 	[theme] {
-		--knitfold-page: var(--editor-fill, #fcf7f2);
-		--knitfold-ink: var(--editor-line, #2c2231);
-		--knitfold-rule: color-mix(in oklch, var(--editor-fill, #fcf7f2), var(--editor-line, #2c2231) 13%);
-		--knitfold-muted: color-mix(in oklch, var(--editor-line, #2c2231), var(--editor-fill, #fcf7f2) 32%);
-		--knitfold-faint: color-mix(in oklch, var(--editor-line, #2c2231), var(--editor-fill, #fcf7f2) 55%);
-		--knitfold-wash: color-mix(in oklch, var(--editor-fill, #fcf7f2), var(--editor-line, #2c2231) 4%);
-		--knitfold-grid: color-mix(in oklch, var(--editor-fill, #fcf7f2), var(--editor-line, #2c2231) 38%);
-		--knitfold-shade: color-mix(in oklch, var(--editor-line, #2c2231) 14%, transparent);
-		--knitfold-hover: color-mix(in oklch, var(--editor-fill, #fcf7f2), var(--studio-warning, #ffd84a) 22%);
+		/* (what's there before the theme's stylesheet is: knitfold's paper,
+		   or its night when that's what's asked for) */
+		--knitfold-default-page: #fcf7f2;
+		--knitfold-default-ink: #2c2231;
+		--knitfold-page: var(--editor-fill, var(--knitfold-default-page));
+		--knitfold-ink: var(--editor-line, var(--knitfold-default-ink));
+		--knitfold-rule: color-mix(in oklch, var(--knitfold-page), var(--knitfold-ink) 13%);
+		--knitfold-muted: color-mix(in oklch, var(--knitfold-ink), var(--knitfold-page) 32%);
+		--knitfold-faint: color-mix(in oklch, var(--knitfold-ink), var(--knitfold-page) 55%);
+		--knitfold-wash: color-mix(in oklch, var(--knitfold-page), var(--knitfold-ink) 4%);
+		--knitfold-grid: color-mix(in oklch, var(--knitfold-page), var(--knitfold-ink) 38%);
+		--knitfold-shade: color-mix(in oklch, var(--knitfold-ink) 14%, transparent);
+		--knitfold-hover: color-mix(in oklch, var(--knitfold-page), var(--studio-warning, #ffd84a) 22%);
 		--knitfold-accent: var(--studio-primary, #c8336c);
-		--knitfold-accent-soft: color-mix(in oklch, var(--studio-primary, #c8336c) 14%, var(--editor-fill, #fcf7f2));
+		--knitfold-accent-soft: color-mix(in oklch, var(--studio-primary, #c8336c) 14%, var(--knitfold-page));
 		--knitfold-danger: var(--studio-danger, #d0342c);
 		--knitfold-selection: var(--editor-selection-fill, var(--studio-selection-fill, #ffef8acc));
 		--knitfold-cursor: var(--editor-cursor-fill, #c8336c);
@@ -27,6 +31,15 @@
 		--knitfold-syntax-string: var(--syntax-string, var(--studio-added, #12805d));
 		--knitfold-syntax-function: var(--syntax-function--variable-name, var(--studio-link, #2e64b8));
 		--knitfold-syntax-definition: var(--syntax-definition--variable-name, var(--studio-secondary, #6f55c9));
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:root,
+		:host,
+		[theme] {
+			--knitfold-default-page: #22212d;
+			--knitfold-default-ink: #efe6dc;
+		}
 	}
 }
 
@@ -491,10 +504,9 @@
 		text-underline-offset: 3px;
 	}
 
-	/* the editor's tooltips (hovers, completions, problems): popovers, in the
-	   page's top layer (code-pane.tsx), dressed as knitfold's own little
-	   panels are. (first, a popover's own place and look undone: codemirror
-	   says where it goes) */
+	/* the editor's tooltips (hovers, completions, problems): in their layer,
+	   in the page's top layer (code-pane.tsx), dressed as knitfold's own
+	   little panels are. (codemirror says where they go) */
 	& .cm-tooltip {
 		right: auto;
 		bottom: auto;

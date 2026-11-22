@@ -16,6 +16,17 @@ export default defineConfig({
 					"data-theme-light": "knitfold-paper",
 					"data-theme-dark": "knitfold-night",
 				},
+				// the page's paper (or its night) from the first paint, until
+				// the theme's stylesheet comes. its layer's named first, so
+				// it's the lowest: the theme's own (in `patchwork`) wins
+				extraHead: `<style>
+@layer knitfold-boot {
+	:root { color-scheme: light dark; background: #fcf7f2; color: #2c2231 }
+	@media (prefers-color-scheme: dark) {
+		:root { background: #22212d; color: #efe6dc }
+	}
+}
+</style>`,
 			},
 			icons: {source: "public/knitfold.svg"},
 			static: [
