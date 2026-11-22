@@ -99,6 +99,8 @@ export function lookups(given: Given, wanted: Map<string, Wanted>) {
 // a list is its first element's type; a map's keys always quoted. past
 // `depth`, unknown (as lattice's doc-types.js)
 
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
+
 export function typeOf(value: unknown, depth = 4): string {
 	if (value === null || value === undefined) return "null"
 	if (typeof value === "string") return "string"
@@ -116,7 +118,14 @@ export function typeOf(value: unknown, depth = 4): string {
 		if (depth <= 0) return "unknown"
 		const fields = Object.entries(value).filter(([, field]) => field !== undefined)
 		if (!fields.length) return "{}"
-		return `{ ${fields.map(([key, field]) => `${JSON.stringify(key)}: ${typeOf(field, depth - 1)}; `).join("")}}`
+		// (a key that isn't a name, "@patchwork" say, is only said to be
+		// there: the editor's completions take one such, completed as
+		// `["@patchwork"]` from the dot, to be what all of them complete from,
+		// and so offer nothing else. it's still there to be asked for, as
+		// crab["@patchwork"], just not what it is)
+		const named = fields.filter(([key]) => IDENTIFIER.test(key))
+		const others = named.length < fields.length ? "[key: string]: unknown; " : ""
+		return `{ ${others}${named.map(([key, field]) => `${key}: ${typeOf(field, depth - 1)}; `).join("")}}`
 	}
 	return "unknown"
 }

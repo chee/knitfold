@@ -135,7 +135,7 @@ test("doc() and get(): held for, then given", async () => {
 	assert.ok(new Picture(pixels).at(0, 0).every((v, i) => v === [0, 0, 0, 255][i]))
 	// (and what each is, for the language server)
 	const {doc, get} = overloadsOf({...given, ...pictured, ...broken})
-	assert.deepEqual(doc, [`declare function doc(url: "${url}"): { "big": boolean; }`])
+	assert.deepEqual(doc, [`declare function doc(url: "${url}"): { big: boolean; }`])
 	assert.deepEqual(get, [`declare function get(url: "https://x.test/p.png", as?: "clever"): Picture`])
 })
 
@@ -160,4 +160,32 @@ test("the little sums: and left off, the techniques' range", () => {
 	assert.equal(run("remap(0.5, 0, 1)"), 3)
 	// (and as stitches: rounded to a technique)
 	assert.equal(techniqueOf(compile("lerp(x / (w - 1))")(7, 0, 0, 8, 8, 0)), Technique.RIB3)
+})
+
+test("a doc's type: its names, and only that it has the rest", async () => {
+	const {typeOf} = await import("../src/given.ts")
+	assert.equal(
+		typeOf({"@patchwork": {type: "patternwitch"}, width: 50, pixels: [[0, 1]], palette: ["#3d405b"]}),
+		"{ [key: string]: unknown; width: number; pixels: number[][]; palette: string[]; }",
+	)
+	assert.equal(typeOf({a: {"my-key": 1, b: true}}), "{ a: { [key: string]: unknown; b: boolean; }; }")
+})
+
+test("and every function's, too", () => {
+	const run = (code: string, x = 0, y = 0) => compile(code)(x, y, 0, 8, 8, 0)
+	assert.equal(run("const pick = n => { if (n) {s} else {g} }\npick(x)", 1), Technique.SEED)
+	assert.equal(run("const pick = n => { if (n) {s} else {g} }\npick(x)", 0), Technique.GARTER)
+	assert.equal(run("function twice(n) { n * 2 }\ntwice(3)"), 6)
+	assert.equal(run("const f = function () { let k = r2; k }\nf()"), Technique.RIB2)
+	assert.equal(run("const o = { m() { 4 }, get g() { 5 } }\no.m() + o.g"), 9)
+	assert.equal(run("class K { m() { 3 } }\nnew K().m()"), 3)
+	// (a loop in a function: its own)
+	assert.equal(run("function sum(n) { let t = 0; for (let i = 0; i <= n; i++) { t += i; t } }\nsum(3)"), 6)
+	assert.equal(run("[1, 2, 3].map(n => { n * n }).at(-1)"), 9)
+	// (a return of its own, still)
+	assert.equal(run("function f(n) { if (n) return b\nf }\nf(1)"), Technique.BACK)
+	// (not a constructor's: it'd be what new gives back. nor a setter's, a generator's)
+	assert.equal(run("class K { constructor() { this.v = 2; ({}) } }\nnew K().v"), 2)
+	assert.equal(run("const o = { set s(v) { this.v = v; 1 } }\no.s = 4\no.v"), 4)
+	assert.equal(run("function* g() { 1 }\n[...g()].length"), 0)
 })

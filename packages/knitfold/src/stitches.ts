@@ -111,7 +111,8 @@ export function compile(code: string, globals: Record<string, unknown> = {}): Bl
 	if (!trimmed) return () => Technique.FRONT
 	try {
 		// (an expression: its value's the stitch)
-		return wrap(`return (${trimmed.replace(/;\s*$/, "")}\n)`)
+		// (its functions' last values given back too)
+		return wrap(`return (${withCompletion(trimmed, {top: false}).replace(/;\s*$/, "")}\n)`)
 	} catch {
 		return wrap(withCompletion(code))
 	}
