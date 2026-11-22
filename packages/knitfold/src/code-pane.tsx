@@ -1,9 +1,9 @@
-import {RangeSetBuilder, StateEffect, Text} from "@codemirror/state"
+import {RangeSetBuilder, StateEffect} from "@codemirror/state"
 import {Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate} from "@codemirror/view"
 import {syntaxTree} from "@codemirror/language"
 import type {SyntaxNode} from "@lezer/common"
 import {createEffect, onSettled} from "solid-js"
-import {DECLARATIONS_URI} from "./declarations.ts"
+import {DECLARATIONS_PATH} from "./declarations.ts"
 import {GET_AS, keyOf, type GetAs, type Wanted} from "./given.ts"
 
 // a block's code: patchwork's own file tool, on the block's .js, as it'd be
@@ -17,34 +17,12 @@ import {GET_AS, keyOf, type GetAs, type Wanted} from "./given.ts"
 // with this event (its codemirror-extensions.ts)
 const EXTENSIONS_EVENT = "file:codemirror-extensions"
 
-interface LspClient {
-	didOpen(file: {uri: string; languageId: string; version: number; doc: Text}): void
-	notification(method: string, params: unknown): void
-}
-
-// the language server's client, once the file tool's started it: the
-// editor's lsp plugin, found among its plugins. (the file tool doesn't hand
-// it out; this is the one place knitfold reaches in for it)
-function lspClientOf(view: EditorView) {
-	const plugins = (view as unknown as {plugins?: {value?: {client?: {didOpen?: unknown}}}[]}).plugins ?? []
-	return plugins.map(plugin => plugin.value).find(value => typeof value?.client?.didOpen === "function")?.client as
-		| LspClient
-		| undefined
-}
-
-// each client's declarations, as it was last told them (and which version)
-const told = new WeakMap<object, {version: number; text: string}>()
-function tell(client: LspClient, text: string) {
-	const was = told.get(client)
-	if (!was) {
-		told.set(client, {version: 1, text})
-		client.didOpen({uri: DECLARATIONS_URI, languageId: "typescript", version: 1, doc: Text.of(text.split("\n"))})
-		return
-	}
-	if (was.text === text) return
-	const version = was.version + 1
-	told.set(client, {version, text})
-	client.notification("textDocument/didChange", {textDocument: {uri: DECLARATIONS_URI, version}, contentChanges: [{text}]})
+// what it says with it. `languageServer` is there for code files: files of
+// knitfold's own for the typescript language server (its tsconfig has all
+// of them, so a .d.ts's names are everyone's, no reference needed)
+interface ExtensionsDetail {
+	extensions: unknown[]
+	languageServer?: {writeFile(path: string, text: string): void}
 }
 
 // a doc("…") or get("…", "…") call's url, as written: its string, and what
@@ -131,31 +109,22 @@ export default function CodePane(props: {
 }) {
 	let box!: HTMLDivElement
 	const views = new Set<EditorView>()
-	const clients = new Set<LspClient>()
-
-	// (the server's loaded on demand, after the editor: looked for a while)
-	const declarations = ViewPlugin.define(view => {
+	const tracked = ViewPlugin.define(view => {
 		views.add(view)
-		let tries = 0
-		const timer = setInterval(() => {
-			const client = lspClientOf(view)
-			if (client) {
-				clients.add(client)
-				tell(client, props.declarations())
-			}
-			if (client || ++tries > 200) clearInterval(timer)
-		}, 300)
-		return {
-			destroy() {
-				clearInterval(timer)
-				views.delete(view)
-			},
-		}
+		return {destroy: () => views.delete(view)}
 	})
 
-	createEffect(props.declarations, text => {
-		for (const client of clients) tell(client, text)
-	})
+	// the block's names, for the language server: written as the file tool
+	// asks for extensions, and again as they change. (it holds them till the
+	// server's started)
+	let server: ExtensionsDetail["languageServer"]
+	let told: string | undefined
+	const tell = (text: string) => {
+		if (!server || text === told) return
+		told = text
+		server.writeFile(DECLARATIONS_PATH, text)
+	}
+	createEffect(props.declarations, tell)
 	createEffect(
 		() => [props.loading(), props.failed()],
 		() => {
@@ -164,8 +133,16 @@ export default function CodePane(props: {
 	)
 
 	onSettled(() => {
-		const extensions = [declarations, marks({loading: props.loading, failed: props.failed})]
-		const extend = (event: Event) => (event as CustomEvent<{extensions: unknown[]}>).detail.extensions.push(...extensions)
+		const extensions = [tracked, marks({loading: props.loading, failed: props.failed})]
+		const extend = (event: Event) => {
+			const detail = (event as CustomEvent<ExtensionsDetail>).detail
+			detail.extensions.push(...extensions)
+			if (detail.languageServer) {
+				server = detail.languageServer
+				told = undefined
+				tell(props.declarations())
+			}
+		}
 		box.addEventListener(EXTENSIONS_EVENT, extend)
 		const view = document.createElement("patchwork-view")
 		view.setAttribute("doc-url", props.url)

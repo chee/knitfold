@@ -3,8 +3,8 @@ import {HELPER_DECLARATIONS} from "./helpers.ts"
 
 // what a block's code can see, as typescript declarations: so the file
 // tool's language server, hovering or completing a name, says what it is
-// (and isn't left saying `any`). opened in the server beside the block's
-// .js (code-pane.tsx)
+// (and isn't left saying `any`). written into the server's files, beside
+// the block's .js (code-pane.tsx)
 
 const STITCH_DOCS: Record<keyof typeof NAMES, string> = {
 	f: "front: knit on the front bed. stockinette, from the front",
@@ -110,4 +110,6 @@ export const DECLARATIONS = [
 	"",
 ].join("\n")
 
-export const DECLARATIONS_URI = "file:///knitfold/knitfold.d.ts"
+/** where they are in the language server's files (rooted at /, beside each
+ * open document's folder) */
+export const DECLARATIONS_PATH = "/knitfold/knitfold.d.ts"
