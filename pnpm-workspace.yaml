@@ -10,5 +10,12 @@ minimumReleaseAgeExclude:
   - "@automerge/*"
 overrides:
   "@automerge/automerge": 3.5.0
+  # patchwork's current automerge-repo is chee's fork (aliased, under
+  # node_modules/@chee/), but keyhive 0.8 asks for the plain subduction
+  # one, which patchwork's vite plugin has no patch for and fails the
+  # build on. patchwork's own workspace overrides it onto the fork; so
+  # does this (the @ark-0.6 stack's keyhive 0.6 keeps its own .48)
+  "@automerge/automerge-repo-keyhive@0.8.0-alpha.1>@automerge/automerge-repo": "npm:@chee/automerge-repo@2.6.0-rabbit.1"
+  "@automerge/automerge-repo-keyhive@0.8.0-alpha.1>@automerge/automerge-repo-network-websocket": "npm:@chee/automerge-repo-network-websocket@2.6.0-rabbit.1"
 fetchTimeout: 3600000
 fetchRetries: 5

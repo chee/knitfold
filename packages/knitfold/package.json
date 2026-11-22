@@ -26,8 +26,8 @@
 		"solid-js": "^2.0.3"
 	},
 	"devDependencies": {
-		"@automerge/automerge-repo": "2.6.0-subduction.49",
-		"@inkandswitch/patchwork-bootloader": "^0.9.7",
+		"@automerge/automerge-repo": "npm:@chee/automerge-repo@2.6.0-rabbit.1",
+		"@inkandswitch/patchwork-bootloader": "^0.9.8",
 		"@inkandswitch/patchwork-providers": "0.5.5",
 		"@solidjs/vite-plugin": "^3.0.1",
 		"typescript": "^7.0.2",
