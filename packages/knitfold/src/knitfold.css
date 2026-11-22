@@ -491,6 +491,138 @@
 		text-underline-offset: 3px;
 	}
 
+	/* the editor's tooltips (hovers, completions, problems): popovers, in the
+	   page's top layer (code-pane.tsx), dressed as knitfold's own little
+	   panels are. (first, a popover's own place and look undone: codemirror
+	   says where it goes) */
+	& .cm-tooltip {
+		right: auto;
+		bottom: auto;
+		margin: 0;
+		padding: 0;
+		overflow: visible;
+		max-width: min(40em, calc(100vw - 24px));
+		border: 0;
+		border-radius: 0;
+		color: var(--knitfold-ink);
+		background: var(--knitfold-page);
+		box-shadow:
+			0 0 0 1px var(--knitfold-rule),
+			0 4px 16px var(--knitfold-shade);
+		font: 12px/1.5 var(--knitfold-family-code);
+		animation: knitfold-arrive 0.12s ease-out;
+	}
+
+	& .cm-tooltip :is(code, pre, kbd, tt) {
+		font: inherit;
+		color: inherit;
+		background: none;
+	}
+
+	& .cm-tooltip :is(p, ul, ol) {
+		margin: 0.4em 0;
+	}
+
+	/* what's hovered: its type, then what it is, in prose */
+	& .cm-tooltip-section {
+		padding: 6px 10px;
+	}
+
+	& .cm-tooltip-section + .cm-tooltip-section {
+		border-top: 1px solid var(--knitfold-rule);
+	}
+
+	& .cm-lsp-documentation {
+		& pre {
+			margin: 0;
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
+
+		& pre + :not(pre),
+		& hr + * {
+			color: var(--knitfold-muted);
+			font-family: var(--knitfold-family);
+		}
+
+		& hr {
+			margin: 6px -10px;
+			border: 0;
+			border-top: 1px solid var(--knitfold-rule);
+		}
+	}
+
+	/* the completions: a list, the picked one washed in the accent */
+	& .cm-tooltip-autocomplete {
+		& > ul {
+			max-height: 14em;
+			padding: 3px 0;
+			font: inherit;
+		}
+
+		& > ul > li {
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
+			padding: 1px 10px 1px 6px;
+			line-height: 1.6;
+		}
+
+		& > ul > li[aria-selected] {
+			color: var(--knitfold-ink);
+			background: var(--knitfold-accent-soft);
+		}
+	}
+
+	& .cm-completionIcon {
+		width: 1.2em;
+		padding: 0;
+		color: var(--knitfold-faint);
+		opacity: 1;
+		text-align: center;
+	}
+
+	/* (codemirror's is a key, an emoji: a quiet letter, as ƒ is) */
+	& .cm-completionIcon-keyword::after {
+		content: "k";
+		font-style: italic;
+	}
+
+	& .cm-completionMatchedText {
+		color: var(--knitfold-accent);
+		text-decoration: none;
+	}
+
+	& .cm-completionDetail {
+		margin-left: auto;
+		padding-left: 12px;
+		color: var(--knitfold-muted);
+		font-style: normal;
+	}
+
+	& .cm-completionInfo {
+		padding: 6px 10px;
+	}
+
+	/* a problem's: what's wrong, its edge in the danger red */
+	& .cm-tooltip-lint {
+		padding: 0;
+	}
+
+	& .cm-diagnostic {
+		padding: 5px 10px;
+		border-left: 2px solid var(--knitfold-danger);
+	}
+
+	& .cm-diagnostic-warning {
+		border-left-color: var(--knitfold-accent);
+	}
+
+	& .cm-diagnostic-info,
+	& .cm-diagnostic-hint {
+		border-left-color: var(--knitfold-muted);
+	}
+
 	& .cm-presence-caret-label {
 		display: none;
 	}

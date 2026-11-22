@@ -50,6 +50,19 @@
 	--paper-sky: #2e64b8;
 	--paper-peach: #b9541c;
 	--paper-selection: #ffef8acc;
+
+	/* the code's own: a little lychee (its pink, its strings' wash), a little
+	   flexoki (ink on paper, ochre and olive), a little gruvbox (plum, aqua,
+	   warm grey) */
+	--code-keyword: #b8336a;
+	--code-call: #b04a17;
+	--code-define: #3f7a5a;
+	--code-string: #5f7a14;
+	--code-string-wash: #f1f2d8;
+	--code-number: #8f3f71;
+	--code-type: #a8700f;
+	--code-comment: #7c6f64;
+	--code-punctuation: #8a7d75;
 }
 
 [theme="knitfold-night"] {
@@ -68,6 +81,16 @@
 	--paper-sky: #82b5ff;
 	--paper-peach: #f29f6b;
 	--paper-selection: #4d4275cc;
+
+	--code-keyword: #ec7aa8;
+	--code-call: #f0975a;
+	--code-define: #8ec07c;
+	--code-string: #b8bb5a;
+	--code-string-wash: #2f3027;
+	--code-number: #d99bc0;
+	--code-type: #e6b450;
+	--code-comment: #a89984;
+	--code-punctuation: #8f8798;
 }
 
 [theme="knitfold-paper"],
@@ -120,23 +143,40 @@
 	--knitfold-hover: var(--paper-lemon);
 	--knitfold-family-display: "Fraunces", "Iowan Old Style", Palatino, Georgia, serif;
 
-	--syntax-comment: var(--paper-ink-mute);
+	--syntax-comment: var(--code-comment);
 	--syntax-style-comment: italic;
-	--syntax-doc-comment: var(--paper-ink-mute);
-	--syntax-keyword: var(--paper-rose);
-	--syntax-control-keyword: var(--paper-rose);
-	--syntax-weight-keyword: 500;
-	--syntax-number: var(--paper-peach);
-	--syntax-integer: var(--paper-peach);
-	--syntax-float: var(--paper-peach);
-	--syntax-bool: var(--paper-peach);
-	--syntax-atom: var(--paper-peach);
-	--syntax-string: var(--paper-mint);
-	--syntax-fill-string: transparent;
-	--syntax-function--variable-name: var(--paper-sky);
-	--syntax-function--property-name: var(--paper-sky);
+	--syntax-line-comment: var(--code-comment);
+	--syntax-style-line-comment: italic;
+	--syntax-block-comment: var(--code-comment);
+	--syntax-style-block-comment: italic;
+	--syntax-doc-comment: var(--code-comment);
+	--syntax-style-doc-comment: italic;
+	--syntax-keyword: var(--code-keyword);
+	--syntax-control-keyword: var(--code-keyword);
+	--syntax-module-keyword: var(--code-keyword);
+	--syntax-weight-keyword: 600;
+	--syntax-weight-control-keyword: 600;
+	--syntax-number: var(--code-number);
+	--syntax-integer: var(--code-number);
+	--syntax-float: var(--code-number);
+	--syntax-bool: var(--code-number);
+	--syntax-weight-bool: 600;
+	--syntax-atom: var(--code-number);
+	--syntax-weight-atom: 600;
+	--syntax-regexp: var(--code-number);
+	--syntax-escape: var(--code-type);
+	--syntax-string: var(--code-string);
+	--syntax-fill-string: var(--code-string-wash);
+	--syntax-special--string: var(--code-string);
+	--syntax-function--variable-name: var(--code-call);
+	--syntax-function--property-name: var(--code-call);
 	--syntax-variable-name: var(--paper-ink);
-	--syntax-definition--variable-name: var(--paper-lilac);
-	--syntax-operator: var(--paper-ink-mute);
-	--syntax-punctuation: var(--paper-ink-mute);
+	--syntax-definition--variable-name: var(--code-define);
+	--syntax-type-name: var(--code-type);
+	--syntax-class-name: var(--code-type);
+	--syntax-weight-type-name: 600;
+	--syntax-type-operator: var(--code-keyword);
+	--syntax-operator: var(--code-punctuation);
+	--syntax-punctuation: var(--code-punctuation);
+	--syntax-invalid: var(--paper-rose);
 }

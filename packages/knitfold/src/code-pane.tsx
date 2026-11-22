@@ -1,5 +1,5 @@
 import {RangeSetBuilder, StateEffect, Text} from "@codemirror/state"
-import {Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate} from "@codemirror/view"
+import {Decoration, tooltips, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate} from "@codemirror/view"
 import {syntaxTree} from "@codemirror/language"
 import type {SyntaxNode} from "@lezer/common"
 import {createEffect, onSettled} from "solid-js"
@@ -74,6 +74,33 @@ function asked(view: EditorView, call: SyntaxNode) {
 	}
 	return {key: keyOf(wanted), from: first.from, to: first.to}
 }
+
+// the editor's tooltips (hovers, completions, problems), each a popover: in
+// the page's top layer, so the pane's edges don't cut them off. (and so
+// they're placed as fixed ones are, from the window: codemirror only places
+// them from the editor when they've an offsetParent that isn't the page,
+// which, inside patchwork's contained views, they would; a popover hasn't.
+// they're lifted as they're put in, before codemirror measures them)
+const popoverTooltips = [
+	tooltips({position: "fixed"}),
+	ViewPlugin.define(view => {
+		const lift = (node: Node) => {
+			if (!(node instanceof HTMLElement) || !node.classList.contains("cm-tooltip")) return
+			if (!node.popover) node.popover = "manual"
+			if (!node.matches(":popover-open")) {
+				try {
+					node.showPopover()
+				} catch {
+					// (not in the page, after all: it'll be lifted when it is)
+				}
+			}
+		}
+		const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(lift)))
+		observer.observe(view.dom, {childList: true})
+		view.dom.querySelectorAll(":scope > .cm-tooltip").forEach(lift)
+		return {destroy: () => observer.disconnect()}
+	}),
+]
 
 const loadingMark = Decoration.mark({class: "knitfold-getting", attributes: {title: "getting it…"}})
 const refresh = StateEffect.define<null>()
@@ -164,7 +191,7 @@ export default function CodePane(props: {
 	)
 
 	onSettled(() => {
-		const extensions = [declarations, marks({loading: props.loading, failed: props.failed})]
+		const extensions = [declarations, marks({loading: props.loading, failed: props.failed}), popoverTooltips]
 		const extend = (event: Event) => (event as CustomEvent<{extensions: unknown[]}>).detail.extensions.push(...extensions)
 		box.addEventListener(EXTENSIONS_EVENT, extend)
 		const view = document.createElement("patchwork-view")
