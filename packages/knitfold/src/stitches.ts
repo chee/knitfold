@@ -5,6 +5,7 @@
 // bed or the back. every technique's a fabric of knits and purls
 
 import {withCompletion} from "./completion.ts"
+import {HELPERS} from "./helpers.ts"
 
 export const Technique = {
 	/** knit on the back bed: reverse stockinette, a purl from the front */
@@ -100,7 +101,7 @@ export type BlockFunction = (
 // (and their old capitals, FRONT and so on, for blocks written with them).
 // col and row are x and y by other names
 export function compile(code: string, globals: Record<string, unknown> = {}): BlockFunction {
-	const scope = {...Object.fromEntries(TECHNIQUES.map(name => [name, Technique[name]])), ...NAMES, ...globals}
+	const scope = {...Object.fromEntries(TECHNIQUES.map(name => [name, Technique[name]])), ...NAMES, ...HELPERS, ...globals}
 	const wrap = (body: string) =>
 		new Function(
 			"scope",

@@ -1,4 +1,5 @@
 import {NAMES} from "./stitches.ts"
+import {HELPER_DECLARATIONS} from "./helpers.ts"
 
 // what a block's code can see, as typescript declarations: so the file
 // tool's language server, hovering or completing a name, says what it is
@@ -56,6 +57,8 @@ interface Picture {
 export function declarationsWith(overloads: {doc: string[]; get: string[]} = {doc: [], get: []}) {
 	return [
 		DECLARATIONS,
+		HELPER_DECLARATIONS,
+		"",
 		PICTURE,
 		"",
 		...overloads.doc,
