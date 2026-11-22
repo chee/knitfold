@@ -97,6 +97,7 @@ async function decode(response: Response, as: GetAs): Promise<unknown> {
 	const type = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase()
 	if (type === "application/json" || type.endsWith("+json")) return response.json()
 	if (type.startsWith("image/")) return pixelsOf(await response.blob())
+	if (type.startsWith("audio/") || type === "application/ogg") return soundOf(await response.arrayBuffer())
 	if (type === "text/csv") return rowsOf(await response.text(), ",")
 	if (type === "text/tab-separated-values") return rowsOf(await response.text(), "\t")
 	if (type.startsWith("text/") || type.endsWith("+xml") || type === "application/xml" || type.includes("javascript")) {
@@ -142,6 +143,20 @@ async function pixelsOf(blob: Blob): Promise<ImageData> {
 	const context = canvas.getContext("2d")!
 	context.drawImage(image, 0, 0, width, height)
 	return context.getImageData(0, 0, width, height)
+}
+
+// a sound's samples, one channel (its channels, together), at SAMPLE_RATE:
+// up to 11kHz, all a bird sings. (an object of plain things, so it goes to
+// the worker as it is, and the worker makes a Sound of it)
+const SAMPLE_RATE = 22_050
+async function soundOf(bytes: ArrayBuffer) {
+	const decoded = await new OfflineAudioContext(1, 1, SAMPLE_RATE).decodeAudioData(bytes)
+	const samples = new Float32Array(decoded.length)
+	for (let c = 0; c < decoded.numberOfChannels; c++) {
+		const channel = decoded.getChannelData(c)
+		for (let i = 0; i < channel.length; i++) samples[i] += channel[i] / decoded.numberOfChannels
+	}
+	return {sampleRate: decoded.sampleRate, samples}
 }
 
 // a csv's rows, each its cells (quoted cells as they are, "" for a ")

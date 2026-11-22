@@ -58,6 +58,55 @@ export class Picture {
 	}
 }
 
+// a sound (got clever-ly): its samples, one channel, and how many a second.
+// what's at a moment, and how loud a pitch is there (a spectrogram's a
+// power for each moment and pitch)
+export class Sound {
+	readonly sampleRate: number
+	readonly samples: Float32Array
+	constructor(sound: {sampleRate: number; samples: Float32Array}) {
+		this.sampleRate = sound.sampleRate
+		this.samples = sound.samples
+	}
+	/** how long it is, in seconds */
+	get duration() {
+		return this.samples.length / this.sampleRate
+	}
+	/** the sample at a moment (in seconds): -1 to 1 */
+	at(seconds: number) {
+		return this.samples[Math.floor(seconds * this.sampleRate)] ?? 0
+	}
+	/** how loud hz is around a moment (in seconds), 0 to 1: a sine that
+	 * fills the sound's 1. listened for over `window` samples (more hears
+	 * pitches apart better, fewer moments) */
+	power(seconds: number, hz: number, window = 1024) {
+		// (goertzel's: one pitch's, not all of them, as an fft would)
+		const start = Math.floor(seconds * this.sampleRate - window / 2)
+		const k = (2 * Math.PI * hz) / this.sampleRate
+		const coefficient = 2 * Math.cos(k)
+		let s1 = 0
+		let s2 = 0
+		let weights = 0
+		for (let n = 0; n < window; n++) {
+			// (hann's window: so the edges don't ring)
+			const weight = 0.5 - 0.5 * Math.cos((2 * Math.PI * n) / (window - 1))
+			weights += weight
+			const s0 = (this.samples[start + n] ?? 0) * weight + coefficient * s1 - s2
+			s2 = s1
+			s1 = s0
+		}
+		const real = s1 - s2 * Math.cos(k)
+		const imaginary = s2 * Math.sin(k)
+		return (2 * Math.hypot(real, imaginary)) / weights
+	}
+}
+
+const isSoundData = (value: unknown): value is {sampleRate: number; samples: Float32Array} =>
+	!!value &&
+	typeof value === "object" &&
+	(value as {samples?: unknown}).samples instanceof Float32Array &&
+	typeof (value as {sampleRate?: unknown}).sampleRate === "number"
+
 const isImageData = (value: unknown): value is {width: number; height: number; data: Uint8ClampedArray} =>
 	!!value &&
 	typeof value === "object" &&
@@ -78,7 +127,7 @@ export function lookups(given: Given, wanted: Map<string, Wanted>) {
 			throw new NotReady(asked)
 		}
 		if ("error" in got) throw new Error(got.error)
-		const value = isImageData(got.value) ? new Picture(got.value) : got.value
+		const value = isImageData(got.value) ? new Picture(got.value) : isSoundData(got.value) ? new Sound(got.value) : got.value
 		made.set(key, value)
 		return value
 	}
@@ -109,6 +158,7 @@ export function typeOf(value: unknown, depth = 4): string {
 	if (value instanceof Uint8Array) return "Uint8Array"
 	if (value instanceof Date) return "Date"
 	if (value instanceof Picture || isImageData(value)) return "Picture"
+	if (value instanceof Sound || isSoundData(value)) return "Sound"
 	if (Array.isArray(value)) {
 		if (depth <= 0) return "unknown[]"
 		if (!value.length) return "unknown[]"

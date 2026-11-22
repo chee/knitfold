@@ -189,3 +189,17 @@ test("and every function's, too", () => {
 	assert.equal(run("const o = { set s(v) { this.v = v; 1 } }\no.s = 4\no.v"), 4)
 	assert.equal(run("function* g() { 1 }\n[...g()].length"), 0)
 })
+
+test("a sound: what's at a moment, and how loud a pitch is", async () => {
+	const {Sound, typeOf} = await import("../src/given.ts")
+	// (a second of a 2kHz sine, half as loud as it could be)
+	const sampleRate = 22050
+	const samples = Float32Array.from({length: sampleRate}, (_, i) => 0.5 * Math.sin((2 * Math.PI * 2000 * i) / sampleRate))
+	const sound = new Sound({sampleRate, samples})
+	assert.equal(sound.duration, 1)
+	assert.ok(Math.abs(sound.power(0.5, 2000) - 0.5) < 0.01, `2kHz: ${sound.power(0.5, 2000)}`)
+	assert.ok(sound.power(0.5, 5000) < 0.01, `5kHz: ${sound.power(0.5, 5000)}`)
+	// (past its end, quiet)
+	assert.equal(sound.power(3, 2000), 0)
+	assert.equal(typeOf({sampleRate, samples}), "Sound")
+})

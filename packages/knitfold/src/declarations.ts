@@ -38,7 +38,8 @@ const DOC = `/** an automerge doc's value, by its url (\`automerge:…\`). no aw
  * as it changes */`
 const GET = `/** what's at a url. as: "bytes" (a Uint8Array), "text", "json", or "clever"
  * (the default: what its type says it is. json's json, csv's rows of cells,
- * an image a Picture, other text text, anything else its bytes). no await:
+ * an image a Picture, a sound a Sound, other text text, anything else its
+ * bytes). no await:
  * it's waited for (the block's knitted plain till it's here) */`
 
 const PICTURE = `/** an image's pixels. x and y are the image's own: 0, 0 at its top left
@@ -54,12 +55,29 @@ interface Picture {
 	light(x: number, y: number): number
 }`
 
+const SOUND = `/** a sound's samples, one channel. a spectrogram's a power for each moment
+ * and pitch: \`sound.power(seconds, hz)\` */
+interface Sound {
+	readonly sampleRate: number
+	/** -1 to 1, sampleRate of them a second */
+	readonly samples: Float32Array
+	/** how long it is, in seconds */
+	readonly duration: number
+	/** the sample at a moment, in seconds: -1 to 1 */
+	at(seconds: number): number
+	/** how loud hz is around a moment (in seconds): 0 to 1, a sine that fills
+	 * the sound's 1. heard over window samples (1024 if it's left off: more
+	 * hears pitches apart better, fewer moments) */
+	power(seconds: number, hz: number, window?: number): number
+}`
+
 export function declarationsWith(overloads: {doc: string[]; get: string[]} = {doc: [], get: []}) {
 	return [
 		DECLARATIONS,
 		HELPER_DECLARATIONS,
 		"",
 		PICTURE,
+		SOUND,
 		"",
 		...overloads.doc.flatMap(line => [DOC, line]),
 		DOC,
