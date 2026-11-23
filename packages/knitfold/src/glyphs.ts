@@ -3,7 +3,7 @@ import {matrixOf, mix, rgbOf, type Band, type Bounds, type Context2D, type Pictu
 
 // the scarf, stitch by stitch, as lattice's animation draws its fabric: a
 // knit's a V (its two legs, down into the loop below), a purl's a bump (the
-// head of a loop on the far side, faded a little, as it's further away). from
+// head of a loop on the far side, a little deeper, as it's further in). from
 // the stitches themselves, not a simulation, so it's the same at any size;
 // further out than a few pixels a stitch, each's a square of its colour.
 // plated, the knits are the yarn and the purls what it's plated with; seen
@@ -13,15 +13,20 @@ import {matrixOf, mix, rgbOf, type Band, type Bounds, type Context2D, type Pictu
 export const ROW = 0.7
 // a yarn's this wide
 const STRAND = 0.21
-// a purl's the far side's: this much of the way to the paper
-const FAR = 0.3
+// a purl's the far side's: this much of the way to the ink
+const DEEPER = 0.2
 // (closer than this many pixels a stitch, it's drawn as stitches)
 const GLYPHS_FROM = 5
+
+// a purl's colour, wherever a purl's drawn (the scarf's bumps, the chart's
+// cells): what it's plated with (or the yarn), DEEPER of the way to the ink
+export const purlColour = (plating: string, ink: string) => mix(rgbOf(plating), rgbOf(ink), DEEPER)
 
 export interface StitchColours {
 	yarn: string
 	plating: string | null
 	page: string
+	ink: string
 	wash: string
 }
 
@@ -77,9 +82,7 @@ export function stitchesPicture(blocks: Uint8Array[], width: number, height: num
 		bands: blocks.map((_, b) => ({minY: b * height * ROW, maxY: (b + 1) * height * ROW})),
 		paint(context: Context2D, view: View, size: {width: number; height: number}, picked: Band | null) {
 			const ratio = context.canvas.width / size.width
-			const page = rgbOf(colours.page)
 			const yarn = rgbOf(colours.yarn)
-			const plating = rgbOf(colours.plating ?? colours.yarn)
 			context.setTransform(1, 0, 0, 1, 0, 0)
 			context.fillStyle = colours.page
 			context.fillRect(0, 0, context.canvas.width, context.canvas.height)
@@ -92,7 +95,7 @@ export function stitchesPicture(blocks: Uint8Array[], width: number, height: num
 			const side = sideOf(view.flipped)
 			// (plated: the near loops show the yarn, the far ones the plating)
 			const near = `rgb(${yarn.join(" ")})`
-			const far = mix(plating, page, FAR)
+			const far = purlColour(colours.plating ?? colours.yarn, colours.ink)
 			if (view.scale < GLYPHS_FROM) {
 				context.fillStyle = far
 				context.fill(side.purlCells)

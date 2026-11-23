@@ -310,7 +310,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			blocks: r.blocks.map(b => b.stitches),
 			width: width(),
 			height: height(),
-			colours: {yarn: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null, page: colours().page, wash: colours().wash},
+			colours: {yarn: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null, page: colours().page, ink: colours().ink, wash: colours().wash},
 		}
 	})
 
@@ -489,7 +489,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			blocks: [stitches],
 			width: width(),
 			height: height(),
-			colours: {yarn: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null, page: colours().page, wash: colours().page},
+			colours: {yarn: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null, page: colours().page, ink: colours().ink, wash: colours().page},
 		}
 	})
 	// its own .k: cast on, it, and off

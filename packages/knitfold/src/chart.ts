@@ -1,6 +1,5 @@
 import {Stitch} from "./stitches.ts"
-import {ROW} from "./glyphs.ts"
-import {mix, rgbOf} from "./view.ts"
+import {purlColour, ROW} from "./glyphs.ts"
 
 // a block as a chart: a plain grid of cells, a cell a stitch (as wide as
 // it is and ROW as tall, as the scarf's stitches are), the first
@@ -58,6 +57,6 @@ export function drawChart(
 	}
 	context.fillStyle = colours.face
 	context.fill(faces)
-	context.fillStyle = mix(rgbOf(colours.back), rgbOf(colours.ink), 0.2)
+	context.fillStyle = purlColour(colours.back, colours.ink)
 	context.fill(backs)
 }
