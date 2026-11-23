@@ -14,7 +14,7 @@ export const ROW = 0.7
 // a yarn's this wide
 const STRAND = 0.21
 // a purl's the far side's: this much of the way to the ink
-const DEEPER = 0.2
+const DEEPER = 0.1
 // (closer than this many pixels a stitch, it's drawn as stitches)
 const GLYPHS_FROM = 5
 
