@@ -41,7 +41,7 @@ pbpaste | node scripts/lattice.ts - --width 48 --height 96 | pbcopy
   [knitscape](https://github.com/knitscape/knitscape): its contact-node
   topology and its yarn relaxation (MIT), carried over from lattice, in
   `packages/knitfold/src/vendor/knitscape`.
-- **the techniques** are numbered as they are in chee's blob drawings.
+- **the techniques** and idea comes from work by [Agnes Cameron](http://agnescameron.info/)
 - **the colours** are riso inks on paper, and [chee.party](https://chee.party)'s;
   **Jost** is indestructible type's and **Fraunces** undercase type's (OFL),
   as lattice has them.
