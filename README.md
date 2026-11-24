@@ -26,6 +26,15 @@ pnpm test
 pnpm build
 ```
 
+a block (or a few, the first knitted first) as a knitout.js pattern for
+lattice, that writes the .k knitfold would:
+
+```
+cd packages/knitfold
+node scripts/lattice.ts tiger.js --colour '#ff48b0' > tiger.knitout.js
+pbpaste | node scripts/lattice.ts - --width 48 --height 96 | pbcopy
+```
+
 ## who made it
 
 - **the yarn** is Hannah Twigg-Smith's
