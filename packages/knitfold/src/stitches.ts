@@ -44,10 +44,12 @@ export const NAMES = {
 export type Name = keyof typeof NAMES
 
 /** what the machine does with a needle, a row: knits it on the front bed
- * (a knit, from the front) or the back (a purl) */
+ * (a knit, from the front) or the back (a purl). or, in a knitout.js
+ * block's rows, nothing: a needle that row didn't knit */
 export const Stitch = {
 	FRONT: 0,
 	BACK: 1,
+	NONE: 2,
 } as const
 export type StitchKind = (typeof Stitch)[keyof typeof Stitch]
 

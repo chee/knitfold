@@ -62,7 +62,7 @@ export function readKnitout(text: string): Knitout {
 			block = Number(marker[1]) - 1
 			continue
 		}
-		if (/^;\s*plain rows to finish/.test(raw)) {
+		if (/^;\s*(plain rows to finish|between blocks)/.test(raw)) {
 			block = -1
 			continue
 		}

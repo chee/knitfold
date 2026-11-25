@@ -1,11 +1,11 @@
-import type {AutomergeUrl, DocHandle, Repo} from "@automerge/automerge-repo"
+import {updateText, type AutomergeUrl, type DocHandle, type Repo} from "@automerge/automerge-repo"
 import {createEffect, createMemo, createSignal, For, onSettled, Show} from "solid-js"
 import type {ChartColours} from "./chart.ts"
 import ChartView from "./chart-view.tsx"
 import CodePane from "./code-pane.tsx"
-import {codeFile, newBlock, YARNS, type CodeFile, type KnitfoldDoc} from "./datatype.ts"
+import {codeFile, KNITOUT_BLOCK, newBlock, WASTE, YARNS, type CodeFile, type KnitfoldDoc} from "./datatype.ts"
 import {ROW} from "./glyphs.ts"
-import type {GridsResponse, ValueResponse, YarnResponse} from "./knitfold.worker.ts"
+import type {BlockKind, GridsResponse, ValueResponse, YarnResponse} from "./knitfold.worker.ts"
 import {Stitch, stitchOf} from "./stitches.ts"
 
 import KnitscapeView from "./knitscape-view.tsx"
@@ -17,7 +17,7 @@ import {knitoutOf} from "./knitout.ts"
 import {findPatiently} from "./find.ts"
 import {fetcher, type Fetching} from "./fetcher.ts"
 import {overloadsOf, type Given} from "./given.ts"
-import {declarationsWith} from "./declarations.ts"
+import {declarationsWith, knitoutDeclarationsWith} from "./declarations.ts"
 import {creamOf, scarfPresence} from "./presence.ts"
 import {pointerAt} from "./anchor.ts"
 import Mice from "./mice.tsx"
@@ -51,12 +51,9 @@ declare global {
 	}
 }
 
-function hashOf(blocks: Uint8Array[]) {
+function hashOf(text: string) {
 	let hash = 0x811c9dc5
-	for (const bytes of blocks) {
-		for (let i = 0; i < bytes.length; i++) hash = Math.imul(hash ^ bytes[i], 0x01000193)
-		hash = Math.imul(hash ^ 0xff, 0x01000193)
-	}
+	for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193)
 	return hash >>> 0
 }
 
@@ -186,6 +183,9 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	narrowQuery.addEventListener("change", onNarrow)
 	const width = createMemo(() => doc()?.width || 64)
 	const height = createMemo(() => doc()?.height || 64)
+	const minNeedle = createMemo(() => doc()?.minNeedle ?? 1)
+	const kindOf = (n: number): BlockKind => (blocks()[n]?.kind === "knitout" ? "knitout" : "stitches")
+	const knitoutPicked = () => kindOf(block()) === "knitout"
 
 	// ── each block's code: its file's text, kept up with
 
@@ -250,8 +250,12 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			return {
 				type: "grids" as const,
 				codes: blockCodes as string[],
+				kinds: d.blocks.map(b => (b.kind === "knitout" ? "knitout" : "stitches") as BlockKind),
 				width: d.width || 64,
 				height: d.height || 64,
+				minNeedle: d.minNeedle ?? 1,
+				between: d.between ?? "",
+				waste: !!d.waste,
 				title: d.title || "scarf",
 				colour: d.yarn || YARNS[0],
 				plating: d.plating ?? null,
@@ -289,7 +293,18 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		},
 	)
 
+	// a block, as it's shown: its rows (a knitout.js block's are its own).
+	// one that knits no rows (it's only transfers, say, or it's not run yet)
+	// is shown as a few rows of nothing, so there's something to pick
+	const EMPTY_ROWS = 4
+	const shownOf = (b: {height: number; stitches: Uint8Array}) =>
+		b.height > 0 ? b : {height: EMPTY_ROWS, stitches: new Uint8Array(width() * EMPTY_ROWS).fill(Stitch.NONE)}
 	const blockResult = () => result()?.blocks[block()]
+	const blockShown = createMemo(() => {
+		const r = blockResult()
+		return r ? shownOf(r) : null
+	})
+	const blockHeight = () => blockShown()?.height ?? height()
 
 	// ── how the scarf's shown: as stitches, its yarn, lattice's knitting or
 	//    its 3d; and flipped or not (yours alone: the view's kept)
@@ -307,10 +322,11 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		const r = result()
 		if (!r) return null
 		return {
-			blocks: r.blocks.map(b => b.stitches),
+			blocks: r.blocks.map(b => shownOf(b).stitches),
 			width: width(),
-			height: height(),
+			heights: r.blocks.map(b => shownOf(b).height),
 			colours: {yarn: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null, page: colours().page, ink: colours().ink, wash: colours().wash},
+			waste: r.waste ? {...r.waste, colour: doc()?.wasteColour || WASTE} : null,
 		}
 	})
 
@@ -322,20 +338,16 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	let yarnKey = ""
 	let yarnTimer: ReturnType<typeof setTimeout> | undefined
 	createEffect(
-		() => ({r: result(), w: width(), h: height(), plated: !!doc()?.plating, wanted: showing() === "yarn"}),
-		({r, w, h, plated, wanted}) => {
-			if (!r || !wanted) return
-			const stitches = r.blocks.map(b => b.stitches)
-			const key = `${w}×${h}:${plated}:${hashOf(stitches)}`
+		() => ({knitout: result()?.knitout, plated: !!doc()?.plating, wanted: showing() === "yarn"}),
+		({knitout, plated, wanted}) => {
+			if (!knitout || !wanted) return
+			const key = `${plated}:${hashOf(knitout)}`
 			if (key === yarnKey) return
 			const first = !yarnKey
 			yarnKey = key
 			clearTimeout(yarnTimer)
 			setSettling(true)
-			const ask = (relax: boolean) => {
-				const copies = stitches.map(s => s.slice())
-				return yarns.run({type: "yarn", blocks: copies, relax, plated, width: w, height: h}, copies.map(c => c.buffer)) as Promise<YarnResponse>
-			}
+			const ask = (relax: boolean) => yarns.run({type: "yarn", knitout, relax, plated}) as Promise<YarnResponse>
 			yarnTimer = setTimeout(
 				() =>
 					// as it's laid out (a moment), and then settled (seconds)
@@ -369,7 +381,8 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 			const d = doc()
 			const file = blocks()[block()]?.file
 			const code = file ? codes()[file] : text(blocks()[block()]?.code)
-			const timed = !!code && /\bt\b/.test(code.replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, ""))
+			// (a knitout.js block's not run for every stitch: it's no t)
+			const timed = !knitoutPicked() && !!code && /\bt\b/.test(code.replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, ""))
 			return timed && d ? {code: code!, w: d.width || 64, h: d.height || 64} : null
 		},
 		timed => {
@@ -416,7 +429,9 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		const d = doc()
 		const file = blocks()[block()]?.file
 		const code = file ? codes()[file] : text(blocks()[block()]?.code)
-		if (!at || !d || asking) return
+		// (a knitout.js block's stitches are what it knitted: there's no code
+		// to ask about one)
+		if (!at || !d || asking || knitoutPicked()) return
 		// (one at a time, and then the latest: a new worker each time the
 		// mouse crossed a cell would be a lot of workers)
 		asking = true
@@ -447,6 +462,22 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		const at = hovered()
 		const p = probed()
 		if (!at) return null
+		if (knitoutPicked()) {
+			const stitch = blockStitches()?.[at.x + at.y * width()]
+			const needle = minNeedle() + at.x
+			const what =
+				stitch === Stitch.NONE
+					? "not knitted"
+					: `${stitch === Stitch.BACK ? "b" : "f"}${needle} · a ${(stitch === Stitch.BACK) === flipped() ? "knit" : "purl"}`
+			return (
+				<>
+					<span class="knitfold-chart-tip-at">
+						needle {needle} row {at.y}
+					</span>
+					<span class="knitfold-chart-tip-what">{what}</span>
+				</>
+			)
+		}
 		const fresh = p && p.x === at.x && p.y === at.y ? p : null
 		const knit = fresh && !fresh.error ? stitchOf(fresh.technique, at.x, at.y) === (flipped() ? Stitch.BACK : Stitch.FRONT) : null
 		return (
@@ -481,23 +512,29 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 		keep("knitfold:block-view", view)
 	}
 	// its stitches (moving with t, if its code has one)
-	const blockStitches = () => moving() ?? blockResult()?.stitches
+	const blockStitches = () => moving() ?? blockShown()?.stitches
 	const blockScene = createMemo<StitchScene | null>(() => {
 		const stitches = blockStitches()
-		if (!stitches || stitches.length !== width() * height()) return null
+		if (!stitches || stitches.length !== width() * blockHeight()) return null
 		return {
 			blocks: [stitches],
 			width: width(),
-			height: height(),
+			heights: [blockHeight()],
 			colours: {yarn: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null, page: colours().page, ink: colours().ink, wash: colours().page},
 		}
 	})
 	// its own .k: cast on, it, and off
 	const blockKnitout = createMemo(() => {
-		const stitches = blockResult()?.stitches
-		if (!stitches) return ""
-		const grid = {width: width(), height: height(), stitches, techniques: new Uint8Array(0)}
-		return knitoutOf([grid], {title: `block ${block() + 1}`, colour: doc()?.yarn || YARNS[0], plating: doc()?.plating ?? null})
+		const r = blockResult()
+		if (!r) return ""
+		const part = r.ops ? {ops: r.ops} : {width: width(), height: height(), stitches: r.stitches, techniques: new Uint8Array(0)}
+		return knitoutOf([part], {
+			title: `block ${block() + 1}`,
+			width: width(),
+			minNeedle: minNeedle(),
+			colour: doc()?.yarn || YARNS[0],
+			plating: doc()?.plating ?? null,
+		})
 	})
 	// its yarn, settled (when that's what's shown)
 	const blockYarns = runner()
@@ -505,17 +542,14 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	const [blockSettling, setBlockSettling] = createSignal(false)
 	let blockYarnKey = ""
 	createEffect(
-		() => ({stitches: blockResult()?.stitches, w: width(), h: height(), plated: !!doc()?.plating, wanted: blockView() === "yarn"}),
-		({stitches, w, h, plated, wanted}) => {
-			if (!stitches || !wanted) return
-			const key = `${w}×${h}:${plated}:${hashOf([stitches])}`
+		() => ({knitout: blockKnitout(), plated: !!doc()?.plating, wanted: blockView() === "yarn"}),
+		({knitout, plated, wanted}) => {
+			if (!knitout || !wanted) return
+			const key = `${plated}:${hashOf(knitout)}`
 			if (key === blockYarnKey) return
 			blockYarnKey = key
 			setBlockSettling(true)
-			const ask = (relax: boolean) => {
-				const copy = stitches.slice()
-				return blockYarns.run({type: "yarn", blocks: [copy], relax, plated, width: w, height: h}, [copy.buffer]) as Promise<YarnResponse>
-			}
+			const ask = (relax: boolean) => blockYarns.run({type: "yarn", knitout, relax, plated}) as Promise<YarnResponse>
 			ask(false)
 				.then(laid => {
 					setBlockSettled(laid)
@@ -540,7 +574,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 	const [room, setRoom] = createSignal({width: 0, height: 0})
 	const cell = createMemo(() => {
 		const {width: w, height: h} = room()
-		return Math.max(2, Math.min(16, Math.floor(Math.min((w - 72) / width(), ((h - 16) * 0.6) / (height() * ROW)))))
+		return Math.max(2, Math.min(16, Math.floor(Math.min((w - 72) / width(), ((h - 16) * 0.6) / (Math.max(1, blockHeight()) * ROW)))))
 	})
 	const chartColours = createMemo<ChartColours>(() => {
 		const yarn = doc()?.yarn || YARNS[0]
@@ -549,13 +583,30 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 	// ── changing the scarf
 
-	function addBlock() {
+	function addBlock(kind: BlockKind) {
 		const at = blocks().length
-		const made = newBlock(window.repo, at, NEW_BLOCK)
+		const made = newBlock(window.repo, at, kind === "knitout" ? KNITOUT_BLOCK : NEW_BLOCK, kind)
 		change(d => {
 			d.blocks.push(made)
 		})
 		pick(at)
+	}
+	// a block, moved (dragged, holding alt): to `to`, among the others. the
+	// picked block's still picked, wherever it is now
+	function moveBlock(from: number, to: number) {
+		const count = blocks().length
+		if (from === to || from < 0 || to < 0 || from >= count || to >= count) return
+		const wasPicked = block()
+		change(d => {
+			// (automerge can't move a thing in a list: it's taken out, and a copy
+			// put back in)
+			const moved = JSON.parse(JSON.stringify(d.blocks[from]))
+			d.blocks.splice(from, 1)
+			d.blocks.splice(to, 0, moved)
+		})
+		const order = Array.from({length: count}, (_, n) => n)
+		order.splice(to, 0, ...order.splice(from, 1))
+		pick(order.indexOf(wasPicked))
 	}
 	function removeBlock() {
 		const n = block()
@@ -698,12 +749,14 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 
 	const problemText = () => {
 		const p = problem() ?? blockResult()?.error
-		return p ? (typeof p === "string" ? p : p.message) : ""
+		if (p) return typeof p === "string" ? p : p.message
+		const between = result()?.betweenError
+		return between ? `between blocks: ${between}` : ""
 	}
 	const pickedFile = () => blocks()[block()]?.file ?? null
 	// (what the language server's told: and what doc() and get() have got,
 	// what each is)
-	const declarations = createMemo(() => declarationsWith(overloadsOf(got.given())))
+	const declarations = createMemo(() => (knitoutPicked() ? knitoutDeclarationsWith : declarationsWith)(overloadsOf(got.given())))
 	const failed = createMemo(
 		() => new Map(Object.entries(got.given()).flatMap(([key, given]) => ("error" in given ? [[key, given.error] as const] : []))),
 	)
@@ -740,6 +793,28 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 				onRemove={removeBlock}
 				onDownload={download}
 				onDownloadKcode={downloadKcode}
+				settings={{width: width(), height: height(), minNeedle: minNeedle(), between: doc()?.between ?? "", betweenError: result()?.betweenError, waste: !!doc()?.waste, wasteColour: doc()?.wasteColour || WASTE}}
+				onSetting={(name, value) =>
+					change(d => {
+						if (d[name] !== value) d[name] = value
+					})
+				}
+				onWasteColour={colour =>
+					change(d => {
+						if (d.wasteColour !== colour) d.wasteColour = colour
+					})
+				}
+				onWaste={waste =>
+					change(d => {
+						if (!!d.waste !== waste) d.waste = waste
+					})
+				}
+				onBetween={knitout =>
+					change(d => {
+						if (typeof d.between !== "string") d.between = knitout
+						else updateText(d, ["between"], knitout)
+					})
+				}
 			/>
 
 			<main class="knitfold-scarf">
@@ -752,6 +827,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 						others={needles()}
 						waiting={waiting()}
 						onPick={pick}
+						onMove={moveBlock}
 					/>
 				</Show>
 				<Show when={showing() === "yarn"}>
@@ -812,7 +888,7 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 							<ChartView
 								stitches={blockStitches()}
 								width={width()}
-								height={height()}
+								height={blockHeight()}
 								cell={cell()}
 								colours={chartColours()}
 								flipped={flipped()}

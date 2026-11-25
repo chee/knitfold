@@ -71,11 +71,9 @@ interface Sound {
 	power(seconds: number, hz: number, window?: number): number
 }`
 
-export function declarationsWith(overloads: {doc: string[]; get: string[]} = {doc: [], get: []}) {
+// doc() and get(), with what's been got
+function fetching(overloads: {doc: string[]; get: string[]}) {
 	return [
-		DECLARATIONS,
-		HELPER_DECLARATIONS,
-		"",
 		PICTURE,
 		SOUND,
 		"",
@@ -93,7 +91,82 @@ export function declarationsWith(overloads: {doc: string[]; get: string[]} = {do
 		GET,
 		`declare function get(url: string, as?: "clever"): any`,
 		"",
-	].join("\n")
+	]
+}
+
+export function declarationsWith(overloads: {doc: string[]; get: string[]} = {doc: [], get: []}) {
+	return [DECLARATIONS, HELPER_DECLARATIONS, "", ...fetching(overloads)].join("\n")
+}
+
+// a knitout.js block's (knitout-block.ts): the knitout writer, k (one,
+// already made), the scarf's needles and its carrier, and doc() and get()
+const KNITOUT_DECLARATIONS = `// knitfold: what a knitout.js block's code can see
+
+/** a needle: "f12", "b3" (or "fs12", "bs3", the sliders) */
+type Needle = string | [string, number] | {bed: string; needle: number}
+type Direction = "+" | "-"
+
+/** knitout.js's writer: each call's an op in the .k */
+interface KnitoutWriter {
+	/** a carrier in (no need for the main carrier: it's in) */
+	in(...carriers: string[]): void
+	/** a carrier out (not the main carrier: the scarf goes on after) */
+	out(...carriers: string[]): void
+	inhook(...carriers: string[]): void
+	releasehook(...carriers: string[]): void
+	outhook(...carriers: string[]): void
+	/** a stitch on needle, made with carriers, going direction */
+	knit(direction: Direction, needle: Needle, ...carriers: string[]): void
+	/** a tuck: a loop held, not knitted through */
+	tuck(direction: Direction, needle: Needle, ...carriers: string[]): void
+	/** the carriers past needle, no loop made */
+	miss(direction: Direction, needle: Needle, ...carriers: string[]): void
+	/** the loop at from moved to to (the other bed) */
+	xfer(from: Needle, to: Needle): void
+	split(direction: Direction, from: Needle, to: Needle, ...carriers: string[]): void
+	drop(needle: Needle): void
+	/** the back bed moved, this many needles (0 is lined up) */
+	rack(racking: number): void
+	stitch(before: number, after: number): void
+	stitchNumber(number: number): void
+	speedNumber(number: number): void
+	rollerAdvance(number: number): void
+	addRollerAdvance(number: number): void
+	fabricPresser(mode: string): void
+	carrierSpacing(spacing: number): void
+	carrierStoppingDistance(distance: number): void
+	pause(comment?: string): void
+	comment(text: string): void
+	addHeader(name: string, value: string): void
+	addRawOperation(operation: string): void
+	/** which side the carrier's on: "L", "R", or null if it hasn't moved */
+	getCarrierPosition(carrier: string): "L" | "R" | null
+	write(filename?: string): string
+}
+
+/** knitout.js: require("knitout") (or import it) for a writer of your own */
+declare function require(name: "knitout"): {Writer: new (options: {carriers: string[]}) => KnitoutWriter}
+
+/** a knitout.Writer for the kniterate (carriers 1 to 6), carrier already
+ * in. what it writes goes into the scarf's .k as it is, starting from
+ * wherever what came before left everything (home() first, to start home) */
+declare const k: KnitoutWriter
+/** the needle the scarf's first column is on */
+declare const min_needle: number
+/** the needle the scarf's last column is on */
+declare const max_needle: number
+/** the scarf's yarn's carrier (in, all the way through the scarf) */
+declare const carrier: string
+/** the scarf's yarn's carrier: carrier, by another name */
+declare const main_carrier: string
+/** transfer all to the front bed, at racking 0, with the carrier to the
+ * left: from wherever they are (where what came before left them, and then
+ * k). nothing, if they're there already */
+declare function home(): void
+`
+
+export function knitoutDeclarationsWith(overloads: {doc: string[]; get: string[]} = {doc: [], get: []}) {
+	return [KNITOUT_DECLARATIONS, ...fetching(overloads)].join("\n")
 }
 
 export const DECLARATIONS = [

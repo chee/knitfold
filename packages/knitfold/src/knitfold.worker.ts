@@ -5,7 +5,8 @@
 
 import {BlockError, compile, gridOf, Stitch, techniqueOf, type Grid} from "./stitches.ts"
 import {lookups, NotReady, type Given, type Wanted} from "./given.ts"
-import {knitoutOf} from "./knitout.ts"
+import {Scarf} from "./knitout.ts"
+import {runKnitoutBlock, stitchRows} from "./knitout-block.ts"
 import {knitoutToKcode} from "./vendor/kcode/knitout-to-kcode.js"
 import {programOf, readKnitout} from "./program.ts"
 import {generateTopology} from "./vendor/knitscape/knitbit/simulation/topology.js"
@@ -14,12 +15,24 @@ import {segmentsToPoints} from "./vendor/knitscape/shared/simulation/segments.js
 import {yarnRelaxation} from "./vendor/knitscape/shared/simulation/relaxation.js"
 import {DEFAULT_RELAX_SETTINGS} from "./vendor/knitscape/shared/simulation/types.js"
 
+/** a block's code: a stitch for each x and y (knitfold's own), or knitout.js */
+export type BlockKind = "stitches" | "knitout"
+
 export interface GridsRequest {
 	type: "grids"
 	id: number
 	codes: string[]
+	/** each code's kind (stitches, if it's not said) */
+	kinds?: BlockKind[]
 	width: number
+	/** a stitches block's rows (a knitout.js block's are its own) */
 	height: number
+	/** the needle the first column's on */
+	minNeedle?: number
+	/** knitout.js for between each block and the next */
+	between?: string
+	/** start on Agnes Cameron's waste section (waste.ts) */
+	waste?: boolean
 	title: string
 	colour: string
 	plating: string | null
@@ -82,9 +95,14 @@ export interface KcodeResponse {
 }
 
 export interface BlockResult {
+	/** width × height of them */
 	stitches: Uint8Array
 	techniques: Uint8Array
-	error: {message: string; x?: number; y?: number} | null
+	/** its rows: the scarf's block height, or a knitout.js block's own */
+	height: number
+	/** a knitout.js block's ops, as they are in the .k */
+	ops?: string[]
+	error: {message: string; x?: number; y?: number; line?: number | null} | null
 	/** it asked for something it hasn't got yet: plain till it has */
 	pending?: boolean
 }
@@ -98,20 +116,23 @@ export interface GridsResponse {
 	lines: {start: number; end: number}[]
 	/** what doc() and get() were asked for, and weren't given */
 	wanted: Wanted[]
+	/** the knitout.js for between blocks: what went wrong with it */
+	betweenError?: string | null
+	/** the waste section, if it starts on one: its rows, read back, and for
+	 * each, 1 if it's the waste yarn's or the draw thread's */
+	waste?: {height: number; stitches: Uint8Array; waste: Uint8Array} | null
 	ms: number
 }
 
 export interface YarnRequest {
 	type: "yarn"
 	id: number
-	/** every block's stitches, the first knitted first */
-	blocks: Uint8Array[]
+	/** the .k: the scarf's, or a block's */
+	knitout: string
 	/** settled as knitscape settles it, or (fast) just as it's laid out */
 	relax: boolean
 	/** with a second yarn through every loop, behind the first */
 	plated: boolean
-	width: number
-	height: number
 }
 
 export interface Yarn {
@@ -161,15 +182,15 @@ function linesOf(knitout: string, count: number) {
 			if (found[current]) found[current].start = i + 2
 			return
 		}
-		if (/^;\s*plain rows to finish/.test(line)) current = -1
+		if (/^;\s*(plain rows to finish|between blocks)/.test(line)) current = -1
 		else if (found[current] && line && !line.startsWith(";")) found[current].end = i + 1
 	})
 	return found
 }
 
-function grids(request: GridsRequest): GridsResponse {
+async function grids(request: GridsRequest): Promise<GridsResponse> {
 	const t0 = performance.now()
-	const {width, height} = request
+	const {width, height, minNeedle = 1} = request
 	const plain = (): Grid => ({
 		width,
 		height,
@@ -177,25 +198,65 @@ function grids(request: GridsRequest): GridsResponse {
 		stitches: new Uint8Array(width * height).fill(Stitch.FRONT),
 	})
 	const results: BlockResult[] = []
-	const made: Grid[] = []
 	const wanted = new Map<string, Wanted>()
 	const globals = lookups(request.given ?? {}, wanted)
-	request.codes.forEach((code, b) => {
+	// the scarf, a part at a time: so each knitout.js part's run knowing where
+	// everything is as it starts (its home() brings them back from there)
+	const scarf = new Scarf(width, {
+		title: request.title,
+		colour: request.colour,
+		plating: request.plating,
+		sources: request.sources,
+		minNeedle,
+		waste: request.waste,
+	})
+	const knitoutJs = (code: string) =>
+		runKnitoutBlock(code, {minNeedle, maxNeedle: minNeedle + width - 1, carrier: "3", start: scarf.loops.state(), globals})
+	const failed = (error: {message: string; line: number | null}) => (error.line ? `${error.message} (on line ${error.line})` : error.message)
+	// what goes between each block and the next: knitout.js, run in each gap,
+	// as a knitout.js block is (its first error's said)
+	let betweenError: string | null = null
+	for (const [b, code] of request.codes.entries()) {
+		if (b > 0 && request.between?.trim()) {
+			const asked = wanted.size
+			const run = await knitoutJs(request.between)
+			if (wanted.size === asked) {
+				scarf.between(run.ops)
+				if (run.error) betweenError ??= failed(run.error)
+			}
+		}
 		const asked = wanted.size
+		if (request.kinds?.[b] === "knitout") {
+			const run = await knitoutJs(code)
+			// (it asked for something it hasn't got: nothing yet, till it has)
+			const pending = wanted.size > asked
+			const ops = pending ? [] : run.ops
+			const rows = stitchRows(ops, minNeedle, width)
+			scarf.block({ops})
+			results.push({
+				stitches: rows.stitches,
+				techniques: new Uint8Array(0),
+				height: rows.height,
+				ops,
+				error: pending || !run.error ? null : {message: failed(run.error), line: run.error.line},
+				...(pending ? {pending: true} : {}),
+			})
+			continue
+		}
 		try {
 			const grid = gridOf(compile(code, globals), width, height, request.time)
 			// (it asked, and caught it: it's not what it'll be, yet)
 			if (wanted.size > asked) throw new NotReady([...wanted.values()].at(-1)!)
-			made.push(grid)
-			results.push({stitches: grid.stitches, techniques: grid.techniques, error: null})
+			scarf.block(grid)
+			results.push({stitches: grid.stitches, techniques: grid.techniques, height, error: null})
 		} catch (error) {
 			// (a block that doesn't run is knitted plain, so the scarf's
 			// still the right length)
 			const grid = plain()
-			made.push(grid)
+			scarf.block(grid)
 			if (wanted.size > asked) {
-				results.push({stitches: grid.stitches, techniques: grid.techniques, error: null, pending: true})
-				return
+				results.push({stitches: grid.stitches, techniques: grid.techniques, height, error: null, pending: true})
+				continue
 			}
 			const cause = error instanceof BlockError ? error.cause : error
 			const name = cause instanceof Error ? cause.name : "Error"
@@ -203,21 +264,26 @@ function grids(request: GridsRequest): GridsResponse {
 			results.push({
 				stitches: grid.stitches,
 				techniques: grid.techniques,
+				height,
 				error: error instanceof BlockError ? {message, x: error.x, y: error.y} : {message},
 			})
 		}
-	})
-	const knitout = knitoutOf(made, {title: request.title, colour: request.colour, plating: request.plating, sources: request.sources})
-	return {type: "grids", id: request.id, blocks: results, knitout, lines: linesOf(knitout, made.length), wanted: [...wanted.values()], ms: performance.now() - t0}
+	}
+	const knitout = scarf.finish()
+	// (to be seen: the waste yarn's rows, and the draw thread's, in its colour)
+	const wasteRows = request.waste ? stitchRows(scarf.wasteLines, minNeedle, width) : null
+	const waste = wasteRows && {
+		height: wasteRows.height,
+		stitches: wasteRows.stitches,
+		waste: Uint8Array.from(wasteRows.carriers, carrier => (carrier === "3" ? 0 : 1)),
+	}
+	return {type: "grids", id: request.id, blocks: results, knitout, lines: linesOf(knitout, request.codes.length), wanted: [...wanted.values()], betweenError, waste, ms: performance.now() - t0}
 }
 
 function yarn(request: YarnRequest): YarnResponse {
 	const t0 = performance.now()
-	const {width, height, blocks} = request
 	// the whole scarf, as it's knitted
-	const grids = blocks.map(stitches => ({width, height, stitches, techniques: new Uint8Array(0)}))
-	const knitout = knitoutOf(grids)
-	const program = programOf(readKnitout(knitout))
+	const program = programOf(readKnitout(request.knitout))
 	const topology = generateTopology(program, "compressed")
 	const {nodes, nodeMap} = layoutNodes(topology, program, PARAMS)
 	const segments = computeYarnPathSpline(topology, program, nodes, nodeMap, PARAMS)
@@ -302,7 +368,8 @@ function yarn(request: YarnRequest): YarnResponse {
 		yarns.push({yarn: Number(key), points, beds, plating: Number(key) > PLATING})
 	}
 	// each block's band: where its rows' contact nodes ended up
-	const bands = blocks.map(() => ({minY: Infinity, maxY: -Infinity}))
+	const count = program.blocks.reduce((most: number, b: number) => Math.max(most, b + 1), 0)
+	const bands = Array.from({length: count}, () => ({minY: Infinity, maxY: -Infinity}))
 	topology.nodes.forEach((node: {row: number}, i: number) => {
 		const band = bands[program.blocks[node.row]]
 		if (!band) return
@@ -318,12 +385,12 @@ function yarn(request: YarnRequest): YarnResponse {
 		diameter: YARN_DIAMETER,
 		bounds,
 		bands,
-		stitches: width * height * blocks.length,
+		stitches: program.width * program.height,
 		ms: performance.now() - t0,
 	}
 }
 
-self.onmessage = (event: MessageEvent<GridsRequest | YarnRequest | KcodeRequest | ValueRequest>) => {
+self.onmessage = async (event: MessageEvent<GridsRequest | YarnRequest | KcodeRequest | ValueRequest>) => {
 	const request = event.data
 	try {
 		if (request.type === "value") {
@@ -346,7 +413,7 @@ self.onmessage = (event: MessageEvent<GridsRequest | YarnRequest | KcodeRequest 
 			return
 		}
 		if (request.type === "grids") {
-			const response = grids(request)
+			const response = await grids(request)
 			const transfer = response.blocks.flatMap(block => [block.stitches.buffer, block.techniques.buffer])
 			self.postMessage(response, transfer as Transferable[])
 		} else if (request.type === "yarn") {

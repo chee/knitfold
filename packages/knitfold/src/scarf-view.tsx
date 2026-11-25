@@ -1,5 +1,5 @@
-import {createEffect, createMemo, createSignal, For, onSettled} from "solid-js"
-import {stitchesLayout, type StitchColours} from "./glyphs.ts"
+import {createEffect, createMemo, createSignal, For, onSettled, Show} from "solid-js"
+import {stitchesLayout, type StitchColours, type WasteRows} from "./glyphs.ts"
 import {openSurface, type Surface} from "./render-client.ts"
 import type {InkSpace} from "./anchor.ts"
 import {fitAll, screenBox, toScarf, toScreen, type Bounds, type Band, type View} from "./view.ts"
@@ -12,17 +12,23 @@ import {fitAll, screenBox, toScarf, toScreen, type Bounds, type Band, type View}
 // it's drawn in the render worker (render.worker.ts): the page works out
 // where the scarf is and which block a click's on, and says so; the worker
 // builds the picture and paints it
+//
+// holding alt (option), a block's dragged instead: from its stitches or its
+// line, to between two others, a line where it'll go, and dropped there
 
 const CLICK = 4
 
 type Spaced = HTMLDivElement & {inkSpace?: InkSpace}
 
-/** what's drawn: the blocks' stitches, and their colours */
+/** what's drawn: the blocks' stitches (each as many rows as it has), and
+ * their colours */
 export interface StitchScene {
 	blocks: Uint8Array[]
 	width: number
-	height: number
+	heights: number[]
 	colours: StitchColours
+	/** the waste section, under the first block, if it starts on one */
+	waste?: WasteRows | null
 }
 
 interface Layout {
@@ -47,6 +53,9 @@ export default function ScarfView(props: {
 	/** each block: is it waiting for something (a doc, a get) */
 	waiting?: boolean[]
 	onPick: (block: number) => void
+	/** a block dragged (holding alt) from one place to another: `to` is where
+	 * it is after, among the others */
+	onMove?: (from: number, to: number) => void
 }) {
 	let box!: HTMLDivElement
 	let canvas!: HTMLCanvasElement
@@ -57,8 +66,16 @@ export default function ScarfView(props: {
 	// where the stitches are (the worker has the stitches themselves)
 	const layout = createMemo<Layout | null>(() => {
 		const scene = props.scene
-		return scene ? stitchesLayout(scene.blocks.length, scene.width, scene.height) : null
-	}, {equals: (a, b) => a?.bands.length === b?.bands.length && a?.bounds.maxX === b?.bounds.maxX && a?.bounds.maxY === b?.bounds.maxY})
+		return scene ? stitchesLayout(scene.heights, scene.width, scene.waste?.height ?? 0) : null
+	}, {
+		equals: (a, b) =>
+			!!a &&
+			!!b &&
+			a.bounds.maxX === b.bounds.maxX &&
+			a.bounds.minY === b.bounds.minY &&
+			a.bands.length === b.bands.length &&
+			a.bands.every((band, n) => band.minY === b.bands[n].minY && band.maxY === b.bands[n].maxY),
+	})
 
 	// where the scarf is: as you left it, or all of it
 	const view = createMemo<View | null>(() => {
@@ -120,7 +137,7 @@ export default function ScarfView(props: {
 			if (!scene || !surface) return
 			const blocks = scene.blocks.map(block => block.slice())
 			surface.send(
-				{type: "stitches", blocks, width: scene.width, height: scene.height, colours: scene.colours},
+				{type: "stitches", blocks, width: scene.width, heights: scene.heights, colours: scene.colours, waste: scene.waste ?? null},
 				blocks.map(block => block.buffer),
 			)
 		},
@@ -189,6 +206,69 @@ export default function ScarfView(props: {
 		gesture = v && pointers.size ? {view: v, ...where()} : null
 	}
 
+	// ── a block dragged, holding alt: which, and the gap it's over (0 under
+	// the first, the number of blocks over the last)
+	const [dragging, setDragging] = createSignal<{from: number; gap: number} | null>(null)
+	const [alt, setAlt] = createSignal(false)
+
+	function gapAt(clientX: number, clientY: number) {
+		const v = view()
+		const shape = layout()
+		if (!v || !shape) return 0
+		const rect = canvas.getBoundingClientRect()
+		const [, y] = toScarf(v, clientX - rect.left, clientY - rect.top)
+		return shape.bands.filter(band => (band.minY + band.maxY) / 2 < y).length
+	}
+
+	// where the dragged block will go: a line across the scarf, at the gap
+	const dropLine = createMemo(() => {
+		const drag = dragging()
+		const v = view()
+		const shape = layout()
+		if (!drag || !v || !shape) return null
+		// (where it is, or just next to it: it's not going anywhere)
+		if (drag.gap === drag.from || drag.gap === drag.from + 1) return null
+		const {bands, bounds} = shape
+		const y = drag.gap < bands.length ? bands[drag.gap].minY : bounds.maxY
+		const at = screenBox(v, {minX: bounds.minX - 0.6, maxX: bounds.maxX + 0.6, minY: y, maxY: y})
+		const across = at.right - at.left >= at.bottom - at.top
+		return across
+			? {left: at.left, top: at.top - 1, width: at.right - at.left, height: 2}
+			: {left: at.left - 1, top: at.top, width: 2, height: at.bottom - at.top}
+	})
+
+	function onDragDown(event: PointerEvent) {
+		if (!event.altKey || event.button !== 0 || !props.onMove) return
+		const rect = canvas.getBoundingClientRect()
+		const tab = (event.target as Element).closest?.(".knitfold-tab")
+		const from = tab ? [...box.querySelectorAll(".knitfold-tab")].indexOf(tab) : blockAt(event.clientX - rect.left, event.clientY - rect.top)
+		if (from < 0) return
+		// (not a pan, or a click on its line)
+		event.preventDefault()
+		event.stopPropagation()
+		box.setPointerCapture(event.pointerId)
+		props.onPick(from)
+		setDragging({from, gap: gapAt(event.clientX, event.clientY)})
+	}
+	function onDragMove(event: PointerEvent) {
+		const drag = dragging()
+		if (!drag) return
+		event.stopPropagation()
+		const gap = gapAt(event.clientX, event.clientY)
+		if (gap !== drag.gap) setDragging({...drag, gap})
+	}
+	function onDragUp(event: PointerEvent) {
+		const drag = dragging()
+		if (!drag) return
+		event.stopPropagation()
+		setDragging(null)
+		if (event.type !== "pointerup") return
+		const to = drag.gap > drag.from ? drag.gap - 1 : drag.gap
+		if (to !== drag.from) props.onMove?.(drag.from, to)
+	}
+	const onKey = (event: KeyboardEvent) => setAlt(event.altKey)
+	const offAlt = () => setAlt(false)
+
 	function onPointerDown(event: PointerEvent) {
 		if (!view() || event.button !== 0) return
 		canvas.setPointerCapture(event.pointerId)
@@ -232,7 +312,7 @@ export default function ScarfView(props: {
 		const scene = props.scene
 		if (scene) {
 			const blocks = scene.blocks.map(block => block.slice())
-			surface.send({type: "stitches", blocks, width: scene.width, height: scene.height, colours: scene.colours}, blocks.map(block => block.buffer))
+			surface.send({type: "stitches", blocks, width: scene.width, heights: scene.heights, colours: scene.colours, waste: scene.waste ?? null}, blocks.map(block => block.buffer))
 		}
 		const observer = new ResizeObserver(([entry]) => {
 			const {width, height} = entry.contentRect
@@ -241,6 +321,14 @@ export default function ScarfView(props: {
 		})
 		observer.observe(box)
 		canvas.addEventListener("wheel", onWheel, {passive: false})
+		// (alt's dragging blocks: before the canvas, or a line's button, has it)
+		box.addEventListener("pointerdown", onDragDown, true)
+		box.addEventListener("pointermove", onDragMove, true)
+		box.addEventListener("pointerup", onDragUp, true)
+		box.addEventListener("pointercancel", onDragUp, true)
+		addEventListener("keydown", onKey)
+		addEventListener("keyup", onKey)
+		addEventListener("blur", offAlt)
 		// for the others' mice (anchor.ts): a point on the page is one on the
 		// scarf, in its own units, and back, as it's moved and zoomed here
 		;(box as Spaced).inkSpace = {
@@ -263,13 +351,24 @@ export default function ScarfView(props: {
 			delete (box as Spaced).inkSpace
 			observer.disconnect()
 			canvas.removeEventListener("wheel", onWheel)
+			box.removeEventListener("pointerdown", onDragDown, true)
+			box.removeEventListener("pointermove", onDragMove, true)
+			box.removeEventListener("pointerup", onDragUp, true)
+			box.removeEventListener("pointercancel", onDragUp, true)
+			removeEventListener("keydown", onKey)
+			removeEventListener("keyup", onKey)
+			removeEventListener("blur", offAlt)
 			surface?.close()
 			surface = null
 		}
 	})
 
 	return (
-		<div class="knitfold-scarfview" ref={box}>
+		<div
+			class="knitfold-scarfview"
+			ref={box}
+			data-alt={alt() && props.onMove ? "" : undefined}
+			data-dragging={dragging() ? "" : undefined}>
 			<canvas
 				ref={canvas}
 				onPointerDown={onPointerDown}
@@ -297,6 +396,15 @@ export default function ScarfView(props: {
 					)}
 				</For>
 			</ol>
+			<Show when={dropLine()}>
+				{line => (
+					<div
+						class="knitfold-drop"
+						aria-hidden="true"
+						style={{left: `${line().left}px`, top: `${line().top}px`, width: `${line().width}px`, height: `${line().height}px`}}
+					/>
+				)}
+			</Show>
 			<For each={needles()} keyed={false}>
 				{needle => (
 					<svg

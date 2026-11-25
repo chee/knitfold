@@ -30,59 +30,109 @@ export interface StitchColours {
 	wash: string
 }
 
-// where the scarf's stitches are, in its units: what the page needs to
-// place it and pick its blocks (the worker draws it)
-export function stitchesLayout(count: number, width: number, height: number): {bounds: Bounds; bands: Band[]} {
-	return {
-		bounds: {minX: 0, maxX: width, minY: 0, maxY: count * height * ROW},
-		bands: Array.from({length: count}, (_, b) => ({minY: b * height * ROW, maxY: (b + 1) * height * ROW})),
-	}
+/** the waste section, under the first block: its rows, read back from its
+ * knitout, and which of them are the waste yarn's (or the draw thread's) */
+export interface WasteRows {
+	height: number
+	/** width × height of them */
+	stitches: Uint8Array
+	/** for each row: 1 the waste yarn (or the draw thread), 0 the scarf's */
+	waste: Uint8Array
+	colour: string
 }
 
-export function stitchesPicture(blocks: Uint8Array[], width: number, height: number, colours: StitchColours): Picture {
-	const rows = blocks.length * height
-	// each side's stitches, made when it's first shown: [front, back]
-	const made: {knits: Path2D; purls: Path2D; knitCells: Path2D; purlCells: Path2D}[] = []
+// where the scarf's stitches are, in its units: what the page needs to
+// place it and pick its blocks (the worker draws it). each block's as many
+// rows as it has (a knitout.js block's are its own). a waste section's
+// `below` rows are under the first block, below 0: not a block's
+export function stitchesLayout(heights: number[], width: number, below = 0): {bounds: Bounds; bands: Band[]} {
+	const bands: Band[] = []
+	let rows = 0
+	for (const height of heights) {
+		bands.push({minY: rows * ROW, maxY: (rows + height) * ROW})
+		rows += height
+	}
+	return {bounds: {minX: 0, maxX: width, minY: -below * ROW, maxY: rows * ROW}, bands}
+}
+
+interface Strokes {
+	knits: Path2D
+	purls: Path2D
+	knitCells: Path2D
+	purlCells: Path2D
+}
+const strokes = (): Strokes => ({knits: new Path2D(), purls: new Path2D(), knitCells: new Path2D(), purlCells: new Path2D()})
+
+export function stitchesPicture(blocks: Uint8Array[], width: number, heights: number[], colours: StitchColours, waste?: WasteRows | null): Picture {
+	const {bounds, bands} = stitchesLayout(heights, width, waste?.height ?? 0)
+	// each side's stitches, made when it's first shown: [front, back], each
+	// the scarf's yarn's and the waste yarn's
+	const made: {yarn: Strokes; waste: Strokes}[] = []
+
+	// a stitch at x, on row (from the first block's first, up)
+	function stitchAt(into: Strokes, x: number, row: number, stitch: number, back: boolean) {
+		// (a needle a knitout.js block's row didn't knit: nothing there)
+		if (stitch === Stitch.NONE) return
+		const cx = x + 0.5
+		const cy = row * ROW + ROW / 2
+		// (from the back, the front bed's loops are the far ones)
+		if ((stitch === Stitch.BACK) === back) {
+			into.knits.moveTo(cx - 0.36, cy + 0.36)
+			into.knits.lineTo(cx - 0.05, cy - 0.33)
+			into.knits.moveTo(cx + 0.36, cy + 0.36)
+			into.knits.lineTo(cx + 0.05, cy - 0.33)
+			// (a hair over, so squares side by side don't leave a seam)
+			into.knitCells.rect(x - 0.01, row * ROW - 0.01, 1.02, ROW + 0.02)
+		} else {
+			into.purls.moveTo(cx - 0.38, cy - 0.18)
+			into.purls.quadraticCurveTo(cx, cy + 0.44, cx + 0.38, cy - 0.18)
+			into.purlCells.rect(x - 0.01, row * ROW - 0.01, 1.02, ROW + 0.02)
+		}
+	}
 
 	function sideOf(back: boolean) {
 		const index = back ? 1 : 0
 		if (made[index]) return made[index]
-		const knits = new Path2D()
-		const purls = new Path2D()
-		const knitCells = new Path2D()
-		const purlCells = new Path2D()
-		blocks.forEach((stitches, b) => {
-			for (let y = 0; y < height; y++) {
-				const row = b * height + y
-				const cy = row * ROW + ROW / 2
-				for (let x = 0; x < width; x++) {
-					const stitch = stitches[x + y * width]
-					const cx = x + 0.5
-					// (from the back, the front bed's loops are the far ones)
-					if ((stitch === Stitch.BACK) === back) {
-						knits.moveTo(cx - 0.36, cy + 0.36)
-						knits.lineTo(cx - 0.05, cy - 0.33)
-						knits.moveTo(cx + 0.36, cy + 0.36)
-						knits.lineTo(cx + 0.05, cy - 0.33)
-						// (a hair over, so squares side by side don't leave a seam)
-						knitCells.rect(x - 0.01, row * ROW - 0.01, 1.02, ROW + 0.02)
-					} else {
-						purls.moveTo(cx - 0.38, cy - 0.18)
-						purls.quadraticCurveTo(cx, cy + 0.44, cx + 0.38, cy - 0.18)
-						purlCells.rect(x - 0.01, row * ROW - 0.01, 1.02, ROW + 0.02)
-					}
-				}
+		const side = {yarn: strokes(), waste: strokes()}
+		if (waste) {
+			for (let y = 0; y < waste.height; y++) {
+				const into = waste.waste[y] ? side.waste : side.yarn
+				for (let x = 0; x < width; x++) stitchAt(into, x, y - waste.height, waste.stitches[x + y * width], back)
 			}
+		}
+		let first = 0
+		blocks.forEach((stitches, b) => {
+			const height = heights[b]
+			for (let y = 0; y < height; y++) {
+				for (let x = 0; x < width; x++) stitchAt(side.yarn, x, first + y, stitches[x + y * width], back)
+			}
+			first += height
 		})
-		return (made[index] = {knits, purls, knitCells, purlCells})
+		return (made[index] = side)
+	}
+
+	function draw(context: Context2D, into: Strokes, near: string, far: string, glyphs: boolean) {
+		if (!glyphs) {
+			context.fillStyle = far
+			context.fill(into.purlCells)
+			context.fillStyle = near
+			context.fill(into.knitCells)
+		} else {
+			context.lineCap = "round"
+			context.lineJoin = "round"
+			context.lineWidth = STRAND
+			context.strokeStyle = far
+			context.stroke(into.purls)
+			context.strokeStyle = near
+			context.stroke(into.knits)
+		}
 	}
 
 	return {
-		bounds: {minX: 0, maxX: width, minY: 0, maxY: rows * ROW},
-		bands: blocks.map((_, b) => ({minY: b * height * ROW, maxY: (b + 1) * height * ROW})),
+		bounds,
+		bands,
 		paint(context: Context2D, view: View, size: {width: number; height: number}, picked: Band | null) {
 			const ratio = context.canvas.width / size.width
-			const yarn = rgbOf(colours.yarn)
 			context.setTransform(1, 0, 0, 1, 0, 0)
 			context.fillStyle = colours.page
 			context.fillRect(0, 0, context.canvas.width, context.canvas.height)
@@ -93,23 +143,11 @@ export function stitchesPicture(blocks: Uint8Array[], width: number, height: num
 				context.fillRect(-0.6, picked.minY - 0.3, width + 1.2, picked.maxY - picked.minY + 0.6)
 			}
 			const side = sideOf(view.flipped)
+			const glyphs = view.scale >= GLYPHS_FROM
 			// (plated: the near loops show the yarn, the far ones the plating)
-			const near = `rgb(${yarn.join(" ")})`
-			const far = purlColour(colours.plating ?? colours.yarn, colours.ink)
-			if (view.scale < GLYPHS_FROM) {
-				context.fillStyle = far
-				context.fill(side.purlCells)
-				context.fillStyle = near
-				context.fill(side.knitCells)
-			} else {
-				context.lineCap = "round"
-				context.lineJoin = "round"
-				context.lineWidth = STRAND
-				context.strokeStyle = far
-				context.stroke(side.purls)
-				context.strokeStyle = near
-				context.stroke(side.knits)
-			}
+			draw(context, side.yarn, colours.yarn, purlColour(colours.plating ?? colours.yarn, colours.ink), glyphs)
+			// (the waste yarn's one yarn)
+			if (waste) draw(context, side.waste, waste.colour, purlColour(waste.colour, colours.ink), glyphs)
 			context.setTransform(1, 0, 0, 1, 0, 0)
 		},
 	}

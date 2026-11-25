@@ -8,7 +8,7 @@
 // click's on in the stitches view); what's heavy is here
 
 import {drawChart, type ChartColours} from "./chart.ts"
-import {stitchesPicture, type StitchColours} from "./glyphs.ts"
+import {stitchesPicture, type StitchColours, type WasteRows} from "./glyphs.ts"
 import type {YarnResponse} from "./knitfold.worker.ts"
 import {rgbOf, type Picture, type View} from "./view.ts"
 import {createNoodleRenderer} from "./vendor/knitscape/shared/simulation/renderer.js"
@@ -27,7 +27,7 @@ export type ToRender =
 	| {type: "size"; id: number; width: number; height: number; ratio: number}
 	| {type: "close"; id: number}
 	// the stitches view
-	| {type: "stitches"; id: number; blocks: Uint8Array[]; width: number; height: number; colours: StitchColours}
+	| {type: "stitches"; id: number; blocks: Uint8Array[]; width: number; heights: number[]; colours: StitchColours; waste?: WasteRows | null}
 	| {type: "view"; id: number; view: View; picked: number}
 	// the chart
 	| {type: "chart"; id: number; stitches: Uint8Array; width: number; height: number; cell: number; colours: ChartColours; flipped: boolean}
@@ -92,7 +92,7 @@ function stitchesSurface(canvas: OffscreenCanvas): Surface {
 			soon()
 		},
 		take(message) {
-			if (message.type === "stitches") picture = stitchesPicture(message.blocks, message.width, message.height, message.colours)
+			if (message.type === "stitches") picture = stitchesPicture(message.blocks, message.width, message.heights, message.colours, message.waste)
 			else if (message.type === "view") ({view, picked} = message)
 			soon()
 		},

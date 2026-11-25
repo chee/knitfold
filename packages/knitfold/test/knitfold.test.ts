@@ -89,11 +89,11 @@ test("knitout: transfers where the bed changes, then the row", () => {
 	const grid = gridOf(compile("r1"), 4, 2)
 	const k = knitoutOf([grid], {plainRows: 0})
 	const lines = k.split("\n")
-	assert.ok(lines.includes("in 1") && lines.includes("out 1"))
+	assert.ok(lines.includes("in 3") && lines.includes("out 3"))
 	// rib's needles 2 and 4 to the back, once
 	assert.equal(lines.filter(line => line.startsWith("xfer")).length, 2)
 	assert.ok(lines.includes("xfer f2 b2") && lines.includes("xfer f4 b4"))
-	assert.ok(lines.includes("knit + b2 1") && lines.includes("knit - b4 1"))
+	assert.ok(lines.includes("knit + b2 3") && lines.includes("knit - b4 3"))
 })
 
 test("knitout reads back as a knitscape program", () => {

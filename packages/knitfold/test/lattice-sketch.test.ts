@@ -136,6 +136,6 @@ test("its headers: the machine, and the yarn", () => {
 		";;Carriers: 1 2 3 4 5 6",
 		";;Machine: kniterate",
 		";;Position: Keep",
-		";;Yarn-1: #ff48b0 plated with #f3e9dc",
+		";;Yarn-3: #ff48b0 plated with #f3e9dc",
 	])
 })

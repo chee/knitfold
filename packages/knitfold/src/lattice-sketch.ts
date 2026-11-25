@@ -162,7 +162,7 @@ for (let n = 0; n < plainRows; n++) row(plain)
 k.out(carrier)`
 
 export function latticeSketch(codes: string[], options: SketchOptions = {}) {
-	const {width = 64, height = 64, title = "knitfold", colour = null, plating = null, carrier = "1", minNeedle = 1, plainRows = 2} = options
+	const {width = 64, height = 64, title = "knitfold", colour = null, plating = null, carrier = "3", minNeedle = 1, plainRows = 2} = options
 	const name = title.replace(/\n/g, " ")
 	const yarn = colour ? `${colour}${plating ? ` plated with ${plating}` : ""}` : null
 	const blocks = codes.map((code, n) => blockFunction(code, n + 1))

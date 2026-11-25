@@ -51,7 +51,10 @@ export function drawChart(
 	for (let y = 0; y < height; y++) {
 		const top = H - (y + 1) * r
 		for (let x = 0; x < width; x++) {
-			const into = stitches[x + y * width] === near ? faces : backs
+			const stitch = stitches[x + y * width]
+			// (a needle a knitout.js block's row didn't knit: the page)
+			if (stitch === Stitch.NONE) continue
+			const into = stitch === near ? faces : backs
 			into.rect(column(x) * c, top, c, r)
 		}
 	}

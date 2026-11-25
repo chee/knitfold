@@ -1,4 +1,4 @@
-import {createSignal, For, onSettled, Show} from "solid-js"
+import {createSignal, For, onCleanup, onSettled, Show} from "solid-js"
 import type {JSX} from "@solidjs/web"
 import {YARNS} from "./datatype.ts"
 import {ICONS, type IconName} from "./icons.ts"
@@ -18,6 +18,12 @@ export type ViewName = (typeof VIEWS)[number]["id"]
 // end, what goes out of it (its .k, or its kcode). a choice opens beside
 // its button. (turning it over to see the back's in the page's top right:
 // it's only yours)
+//
+// two buttons have more, on a right click (or a long press, on a phone):
+// the new block's, a new block of either kind (knitfold's own, or
+// knitout.js); and the download's, the scarf's settings (its blocks' size,
+// its first needle, whether it starts on a waste section, and the
+// knitout.js for between each block and the next)
 
 export function Icon(props: {name: IconName; colour?: string}) {
 	return (
@@ -56,6 +62,67 @@ function Pop(props: {open: boolean; onClose: () => void; up?: boolean; children:
 	)
 }
 
+/** the scarf's settings (what's in its doc) */
+export interface Settings {
+	width: number
+	height: number
+	minNeedle: number
+	/** knitout.js, for between each block and the next */
+	between: string
+	/** what went wrong with it, if anything did */
+	betweenError?: string | null
+	/** start on Agnes Cameron's waste section */
+	waste: boolean
+	/** the waste yarn's colour, as it's seen */
+	wasteColour: string
+}
+
+// a button's more: on a right click, or a finger held on it. (a held
+// finger's not a click too, when it comes up)
+const HOLD = 450
+function more(open: () => void) {
+	let timer: ReturnType<typeof setTimeout> | undefined
+	let held = false
+	let from = {x: 0, y: 0}
+	const stop = () => clearTimeout(timer)
+	onCleanup(stop)
+	return {
+		onPointerDown(event: PointerEvent) {
+			held = false
+			stop()
+			if (event.pointerType === "mouse") return
+			from = {x: event.clientX, y: event.clientY}
+			timer = setTimeout(() => {
+				held = true
+				open()
+			}, HOLD)
+		},
+		onPointerMove(event: PointerEvent) {
+			if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > 8) stop()
+		},
+		onPointerUp: stop,
+		onPointerCancel: stop,
+		onContextMenu(event: MouseEvent) {
+			event.preventDefault()
+			stop()
+			held = true
+			open()
+		},
+		/** a click that's a click: not what a held finger left */
+		clicked() {
+			if (!held) return true
+			held = false
+			return false
+		},
+	}
+}
+
+// a number, kept to a whole one from min to max
+const whole = (value: string, min: number, max: number) => {
+	const n = Math.round(Number(value))
+	return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : null
+}
+
 export default function Toolbar(props: {
 	showing: ViewName
 	onShow: (view: ViewName) => void
@@ -73,13 +140,21 @@ export default function Toolbar(props: {
 	/** add a colour to the scarf's own yarns, or take it off */
 	onKeep: (colour: string) => void
 	onForget: (colour: string) => void
-	onAdd: () => void
+	/** a new block: knitfold's own (stitches), or knitout.js */
+	onAdd: (kind: "stitches" | "knitout") => void
 	onRemove: () => void
 	onDownload: () => void
 	onDownloadKcode: () => void
+	settings: Settings
+	onSetting: (name: "width" | "height" | "minNeedle", value: number) => void
+	onBetween: (knitout: string) => void
+	onWaste: (waste: boolean) => void
+	onWasteColour: (colour: string) => void
 }) {
-	type Which = "yarn" | "plating" | "download" | "remove"
+	type Which = "yarn" | "plating" | "download" | "remove" | "add" | "settings"
 	const [open, setOpen] = createSignal<Which | null>(null)
+	const adding = more(() => setOpen("add"))
+	const setting = more(() => setOpen("settings"))
 	const toggle = (which: Which) => setOpen(now => (now === which ? null : which))
 	const close = () => setOpen(null)
 
@@ -91,7 +166,9 @@ export default function Toolbar(props: {
 	// (made once, and kept: what's picked is read as it changes. made again,
 	// its colour input would be too, and the browser's picker would close
 	// as soon as a colour was picked in it)
-	function palette(picked: () => string | null, choose: (colour: string | null) => void, none: boolean) {
+	// (stay: a choice doesn't close what it's in)
+	function palette(picked: () => string | null, choose: (colour: string | null) => void, none: boolean, stay = false) {
+		const done = () => stay || close()
 		return (
 			<div class="knitfold-palette">
 				<For each={choices()}>
@@ -101,7 +178,7 @@ export default function Toolbar(props: {
 							aria-pressed={picked() === colour ? "true" : "false"}
 							aria-label={colour}
 							title={own(colour) ? `${colour}: this scarf's` : colour}
-							onClick={() => (choose(colour), close())}>
+							onClick={() => (choose(colour), done())}>
 							<Icon name="cone" colour={colour} />
 						</button>
 					)}
@@ -129,7 +206,7 @@ export default function Toolbar(props: {
 						aria-pressed={picked() == null ? "true" : "false"}
 						title="not plated: one yarn"
 						aria-label="not plated"
-						onClick={() => (choose(null), close())}>
+						onClick={() => (choose(null), done())}>
 						<Icon name="nocone" />
 					</button>
 				</Show>
@@ -156,9 +233,36 @@ export default function Toolbar(props: {
 			</div>
 
 			<div class="knitfold-group">
-				<button class="knitfold-toolbutton" title="new block" aria-label="new block" onClick={() => props.onAdd()}>
-					<Icon name="add" />
-				</button>
+				<div class="knitfold-holder">
+					<button
+						class="knitfold-toolbutton knitfold-more-button"
+						aria-pressed={open() === "add" ? "true" : "false"}
+						title="new block (right click, or hold: a knitout.js block)"
+						aria-label="new block"
+						aria-haspopup="menu"
+						onPointerDown={adding.onPointerDown}
+						onPointerMove={adding.onPointerMove}
+						onPointerUp={adding.onPointerUp}
+						onPointerCancel={adding.onPointerCancel}
+						onContextMenu={adding.onContextMenu}
+						onClick={() => adding.clicked() && props.onAdd("stitches")}>
+						<Icon name="add" />
+					</button>
+					<Pop open={open() === "add"} onClose={close}>
+						<div class="knitfold-menu" role="menu" aria-label="a new block">
+							<button class="knitfold-sizebutton" role="menuitem" title="a stitch for each x and y" onClick={() => (props.onAdd("stitches"), close())}>
+								knitfold block
+							</button>
+							<button
+								class="knitfold-sizebutton"
+								role="menuitem"
+								title="a knitout.js pattern, as lattice's: k, min_needle, max_needle and main_carrier are given"
+								onClick={() => (props.onAdd("knitout"), close())}>
+								knitout.js block
+							</button>
+						</div>
+					</Pop>
+				</div>
 				<div class="knitfold-holder">
 					<button
 						class="knitfold-toolbutton"
@@ -205,13 +309,99 @@ export default function Toolbar(props: {
 			<div class="knitfold-group">
 				<div class="knitfold-holder">
 					<button
-						class="knitfold-toolbutton"
-						disabled={!props.canDownload}
-						title="download it: knitout, or kcode for the kniterate"
+						class="knitfold-toolbutton knitfold-more-button"
+						aria-pressed={open() === "settings" ? "true" : "false"}
+						data-off={props.canDownload ? undefined : ""}
+						title="download it: knitout, or kcode for the kniterate (right click, or hold: the scarf's settings)"
 						aria-label="download"
-						onClick={() => toggle("download")}>
+						onPointerDown={setting.onPointerDown}
+						onPointerMove={setting.onPointerMove}
+						onPointerUp={setting.onPointerUp}
+						onPointerCancel={setting.onPointerCancel}
+						onContextMenu={setting.onContextMenu}
+						onClick={() => setting.clicked() && props.canDownload && toggle("download")}>
 						<Icon name="download" />
 					</button>
+					<Pop open={open() === "settings"} onClose={close} up>
+						<form class="knitfold-settings" aria-label="the scarf's settings" onSubmit={event => event.preventDefault()}>
+							<label>
+								<span>block width</span>
+								<input
+									type="number"
+									min="1"
+									max="252"
+									value={props.settings.width}
+									onChange={event => {
+										const n = whole(event.currentTarget.value, 1, 252)
+										if (n == null) event.currentTarget.value = String(props.settings.width)
+										else props.onSetting("width", n)
+									}}
+								/>
+							</label>
+							<label>
+								<span>block height</span>
+								<input
+									type="number"
+									min="1"
+									max="1024"
+									value={props.settings.height}
+									onChange={event => {
+										const n = whole(event.currentTarget.value, 1, 1024)
+										if (n == null) event.currentTarget.value = String(props.settings.height)
+										else props.onSetting("height", n)
+									}}
+								/>
+							</label>
+							<label>
+								<span>first needle</span>
+								<input
+									type="number"
+									min="0"
+									max="252"
+									title="the needle the scarf's first column is on (min_needle)"
+									value={props.settings.minNeedle}
+									onChange={event => {
+										const n = whole(event.currentTarget.value, 0, 252)
+										if (n == null) event.currentTarget.value = String(props.settings.minNeedle)
+										else props.onSetting("minNeedle", n)
+									}}
+								/>
+							</label>
+							<label class="knitfold-waste" title="Agnes Cameron's: waste yarn on carrier 6, a draw thread on carrier 1, then the cast on">
+								<input type="checkbox" checked={props.settings.waste} onChange={event => props.onWaste(event.currentTarget.checked)} />
+								<span>start on a waste section</span>
+							</label>
+							<Show when={props.settings.waste}>
+								<div class="knitfold-waste-colour">
+									<span>waste yarn</span>
+									{palette(() => props.settings.wasteColour, colour => colour && props.onWasteColour(colour), false, true)}
+								</div>
+							</Show>
+							<label class="knitfold-between">
+								<span>between blocks (knitout.js)</span>
+								<textarea
+									rows="8"
+									spellcheck={false}
+									autocomplete="off"
+									placeholder={
+										"// knitout.js, between each block and the next.\n" +
+										"// k, min_needle, max_needle, carrier and home()\n" +
+										"// are predefined, as in a knitout.js block\n" +
+										"home()\n" +
+										"for (let n = min_needle; n <= max_needle; ++n)\n" +
+										"\tk.knit(\"+\", \"f\" + n, carrier)"
+									}
+									value={props.settings.between}
+									onInput={event => props.onBetween(event.currentTarget.value)}
+								/>
+								<Show when={props.settings.betweenError}>
+									<span class="knitfold-between-error" role="status">
+										{props.settings.betweenError}
+									</span>
+								</Show>
+							</label>
+						</form>
+					</Pop>
 					<Pop open={open() === "download"} onClose={close} up>
 						<div class="knitfold-downloads">
 							<button class="knitfold-sizebutton" title="knitout" onClick={() => (props.onDownload(), close())}>
