@@ -11,8 +11,9 @@ import {withConstants} from "./constants.ts"
 //
 // lattice runs a pattern in strict mode with no `with`: so Math's names are
 // taken out of Math, and a name a block sets without saying let or const
-// (`n = 3`) is an error there, where it wasn't in knitfold. `doc(url)` is
-// lattice's own, and does what knitfold's does; `get(url)` isn't there
+// (`n = 3`) is an error there, where it wasn't in knitfold. `doc(url)` and
+// `get(url, as)` are lattice's own, imported from "lattice", and do what
+// knitfold's do
 
 export interface SketchOptions {
 	/** stitches across, every block */
@@ -169,7 +170,8 @@ export function latticeSketch(codes: string[], options: SketchOptions = {}) {
 		`// ${name}, from knitfold: ${codes.length} block${codes.length === 1 ? "" : "s"}, ${width} stitches across and ${height} rows each,`,
 		`// the first block knitted first. each block's code is as knitfold reads it;`,
 		`// the rest is knitfold's, so this writes the .k knitfold would`,
-		`const knitout = require("knitout")`,
+		`import {doc, get} from "lattice"`,
+		`import knitout from "knitout"`,
 		`const k = new knitout.Writer({carriers: ["1", "2", "3", "4", "5", "6"]})`,
 		`k.addHeader("Machine", "kniterate")`,
 		`k.addHeader("Position", "Keep")`,

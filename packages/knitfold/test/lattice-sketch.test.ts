@@ -34,26 +34,33 @@ class Writer {
 	}
 }
 
-// run as lattice runs a pattern: strict, with require and doc
-function run(sketch: string, doc: (url: string) => unknown = () => null) {
+type Lattice = {doc?: (url: string) => unknown; get?: (url: string, as?: string) => unknown}
+
+// run as lattice runs a pattern: strict, its imports of knitout and lattice
+// swapped for what they are (as lattice's instrument.js does)
+function run(sketch: string, lattice: Lattice = {}) {
 	let writer: Writer | undefined
-	const require = () => ({
+	const knitout = {
 		Writer: class extends Writer {
 			constructor(options: {carriers: string[]}) {
 				super(options)
 				writer = this
 			}
 		},
-	})
-	new Function("require", "doc", `"use strict";\n${sketch}`)(require, doc)
+	}
+	const imports = /^import \{doc, get\} from "lattice"\nimport knitout from "knitout"$/m
+	assert.match(sketch, imports)
+	const code = sketch.replace(imports, "const {doc, get} = __lattice\nconst knitout = __knitout")
+	const none = () => assert.fail("nothing's got here")
+	new Function("__lattice", "__knitout", `"use strict";\n${code}`)({doc: none, get: none, ...lattice}, knitout)
 	return writer!
 }
 
 const opsOf = (knitout: string) => knitout.split("\n").filter(line => line && !line.startsWith(";;") && !line.startsWith(";!") && !line.startsWith("x-"))
 
-function same(codes: string[], width: number, height: number, doc?: (url: string) => unknown) {
-	const writer = run(latticeSketch(codes, {width, height, title: "same"}), doc)
-	const globals = doc ? {doc} : {}
+function same(codes: string[], width: number, height: number, lattice: Lattice = {}) {
+	const writer = run(latticeSketch(codes, {width, height, title: "same"}), lattice)
+	const globals = lattice
 	const grids = codes.map(code => gridOf(compile(code, globals), width, height))
 	assert.deepEqual(writer.ops, opsOf(knitoutOf(grids, {title: "same"})))
 }
@@ -106,11 +113,21 @@ test("a block that reads a doc, through lattice's doc()", () => {
 		reads++
 		return {width: 10, height: 10, pixels}
 	}
-	same([CRAB], 20, 16, doc)
+	same([CRAB], 20, 16, {doc})
 	// (a const that's the same for every stitch is worked out once)
 	reads = 0
-	run(latticeSketch([CRAB], {width: 20, height: 16}), doc)
+	run(latticeSketch([CRAB], {width: 20, height: 16}), {doc})
 	assert.equal(reads, 1)
+})
+
+test("a block that reads a picture, through lattice's get()", () => {
+	const picture = {light: (x: number, y: number) => ((x + y) % 3) / 2}
+	const get = (url: string, as = "clever") => {
+		assert.equal(url, "https://x.test/p.png")
+		assert.equal(as, "clever")
+		return picture
+	}
+	same([`get("https://x.test/p.png").light(x, y) > 0.5 ? f : s`], 12, 6, {get})
 })
 
 test("its headers: the machine, and the yarn", () => {
