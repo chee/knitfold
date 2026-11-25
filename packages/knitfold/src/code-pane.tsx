@@ -1,5 +1,5 @@
 import {RangeSetBuilder, StateEffect} from "@codemirror/state"
-import {Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate} from "@codemirror/view"
+import {Decoration, drawSelection, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate} from "@codemirror/view"
 import {syntaxTree} from "@codemirror/language"
 import type {SyntaxNode} from "@lezer/common"
 import {createEffect, onSettled} from "solid-js"
@@ -133,7 +133,9 @@ export default function CodePane(props: {
 	)
 
 	onSettled(() => {
-		const extensions = [tracked, marks({loading: props.loading, failed: props.failed})]
+		// (drawSelection: the file tool's editor allows more than one selection,
+		// but the browser's own selection only ever shows one of them)
+		const extensions = [tracked, marks({loading: props.loading, failed: props.failed}), drawSelection()]
 		const extend = (event: Event) => {
 			const detail = (event as CustomEvent<ExtensionsDetail>).detail
 			detail.extensions.push(...extensions)

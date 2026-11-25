@@ -552,6 +552,14 @@
 		display: none;
 	}
 
+	/* every selection, drawn (drawSelection: code-pane.tsx), in the editor's
+	   selection colour. (codemirror's own colour for a focused editor's is
+	   said more specifically than the file tool's theme says it) */
+	& .cm-editor .cm-selectionLayer .cm-selectionBackground,
+	& .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+		background: var(--text-editor-selection-fill, var(--knitfold-selection));
+	}
+
 	& .cm-content {
 		padding-inline: 8px;
 	}
