@@ -70,15 +70,17 @@ export interface ValueRequest {
 export interface ValueResponse {
 	type: "value"
 	id: number
-	/** what the code gave back, written out */
+	/** what the code gave back, written out, as it was */
 	value: string
+	/** what that's read as (techniqueOf) */
 	technique: number
 	error: string | null
 }
 
-// a value, as it'd be written in the code
+// a value, as it'd be written in the code: all of it (0.425 is 0.425, not
+// the 0 it's knitted as: the hover says both)
 function written(value: unknown): string {
-	if (typeof value === "number") return Number.isInteger(value) ? String(value) : String(+value.toFixed(3))
+	if (typeof value === "number") return Object.is(value, -0) ? "-0" : String(value)
 	if (typeof value === "string") return JSON.stringify(value)
 	if (typeof value === "function") return "a function"
 	try {

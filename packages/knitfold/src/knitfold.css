@@ -437,8 +437,16 @@
 }
 
 .knitfold .knitfold-chart-tip-value {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	font-weight: 700;
 	font-size: 14px;
+}
+
+/* what the value's read as: the number it's knitted as */
+.knitfold .knitfold-chart-tip-read {
+	opacity: 0.6;
+	font-weight: 400;
 }
 
 .knitfold .knitfold-chart-tip-error {

@@ -488,7 +488,13 @@ export default function Knitfold(props: {handle: DocHandle<KnitfoldDoc>; element
 				<Show when={fresh} fallback={<span class="knitfold-chart-tip-value">…</span>}>
 					{f => (
 						<Show when={!f().error} fallback={<span class="knitfold-chart-tip-error">{f().error}</span>}>
-							<span class="knitfold-chart-tip-value">{f().value}</span>
+							<span class="knitfold-chart-tip-value">
+								{f().value}
+								{/* (what it's read as, when that's not what it was: 0.425's a 0, 134234's a 1) */}
+								<Show when={f().value !== String(f().technique)}>
+									<span class="knitfold-chart-tip-read"> → {f().technique}</span>
+								</Show>
+							</span>
 							<span class="knitfold-chart-tip-what">
 								{TECHNIQUE_WORDS[f().technique]} · a {knit ? "knit" : "purl"}
 							</span>
